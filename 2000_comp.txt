@@ -1,0 +1,1206 @@
+GAVEL MONTE CARLO SIMULATION SUITE
+======================================================================
+Output directory: ./simulation_results/batch_20251004_020221
+
+======================================================================
+CONVERGENCE STUDY: How does accuracy improve with more comparisons?
+======================================================================
+
+--- Running with 100 comparisons ---
+Creating 100 projects...
+Creating 50 judges...
+Database setup complete!
+
+Running simulation with 100 comparisons...
+  Completed 50/100 comparisons
+  Completed 100/100 comparisons
+Simulation complete!
+  Spearman: 0.290
+  Top-5 Accuracy: 0.0%
+
+--- Running with 200 comparisons ---
+Creating 100 projects...
+Creating 50 judges...
+Database setup complete!
+
+Running simulation with 200 comparisons...
+  Completed 50/200 comparisons
+  Completed 100/200 comparisons
+  Completed 150/200 comparisons
+  Completed 200/200 comparisons
+Simulation complete!
+  Spearman: 0.614
+  Top-5 Accuracy: 40.0%
+
+--- Running with 300 comparisons ---
+Creating 100 projects...
+Creating 50 judges...
+Database setup complete!
+
+Running simulation with 300 comparisons...
+  Completed 50/300 comparisons
+  Completed 100/300 comparisons
+  Completed 150/300 comparisons
+  Completed 200/300 comparisons
+  Completed 250/300 comparisons
+  Completed 300/300 comparisons
+Simulation complete!
+  Spearman: 0.504
+  Top-5 Accuracy: 40.0%
+
+--- Running with 500 comparisons ---
+Creating 100 projects...
+Creating 50 judges...
+Database setup complete!
+
+Running simulation with 500 comparisons...
+  Completed 50/500 comparisons
+  Completed 100/500 comparisons
+  Completed 150/500 comparisons
+  Completed 200/500 comparisons
+  Completed 250/500 comparisons
+  Completed 300/500 comparisons
+  Completed 350/500 comparisons
+  Completed 400/500 comparisons
+  Completed 450/500 comparisons
+  Completed 500/500 comparisons
+Simulation complete!
+  Spearman: 0.784
+  Top-5 Accuracy: 20.0%
+
+--- Running with 750 comparisons ---
+Creating 100 projects...
+Creating 50 judges...
+Database setup complete!
+
+Running simulation with 750 comparisons...
+  Completed 50/750 comparisons
+  Completed 100/750 comparisons
+  Completed 150/750 comparisons
+  Completed 200/750 comparisons
+  Completed 250/750 comparisons
+  Completed 300/750 comparisons
+  Completed 350/750 comparisons
+  Completed 400/750 comparisons
+  Completed 450/750 comparisons
+  Completed 500/750 comparisons
+  Completed 550/750 comparisons
+  Completed 600/750 comparisons
+  Completed 650/750 comparisons
+  Completed 700/750 comparisons
+  Completed 750/750 comparisons
+Simulation complete!
+  Spearman: 0.779
+  Top-5 Accuracy: 60.0%
+
+--- Running with 1000 comparisons ---
+Creating 100 projects...
+Creating 50 judges...
+Database setup complete!
+
+Running simulation with 1000 comparisons...
+  Completed 50/1000 comparisons
+  Completed 100/1000 comparisons
+  Completed 150/1000 comparisons
+  Completed 200/1000 comparisons
+  Completed 250/1000 comparisons
+  Completed 300/1000 comparisons
+  Completed 350/1000 comparisons
+  Completed 400/1000 comparisons
+  Completed 450/1000 comparisons
+  Completed 500/1000 comparisons
+  Completed 550/1000 comparisons
+  Completed 600/1000 comparisons
+  Completed 650/1000 comparisons
+  Completed 700/1000 comparisons
+  Completed 750/1000 comparisons
+  Completed 800/1000 comparisons
+  Completed 850/1000 comparisons
+  Completed 900/1000 comparisons
+  Completed 950/1000 comparisons
+  Completed 1000/1000 comparisons
+Simulation complete!
+  Spearman: 0.811
+  Top-5 Accuracy: 40.0%
+
+--- Running with 1500 comparisons ---
+Creating 100 projects...
+Creating 50 judges...
+Database setup complete!
+
+Running simulation with 1500 comparisons...
+  Completed 50/1500 comparisons
+  Completed 100/1500 comparisons
+  Completed 150/1500 comparisons
+  Completed 200/1500 comparisons
+  Completed 250/1500 comparisons
+  Completed 300/1500 comparisons
+  Completed 350/1500 comparisons
+  Completed 400/1500 comparisons
+  Completed 450/1500 comparisons
+  Completed 500/1500 comparisons
+  Completed 550/1500 comparisons
+  Completed 600/1500 comparisons
+  Completed 650/1500 comparisons
+  Completed 700/1500 comparisons
+  Completed 750/1500 comparisons
+  Completed 800/1500 comparisons
+  Completed 850/1500 comparisons
+  Completed 900/1500 comparisons
+  Completed 950/1500 comparisons
+  Completed 1000/1500 comparisons
+  Completed 1050/1500 comparisons
+  Completed 1100/1500 comparisons
+  Completed 1150/1500 comparisons
+  Completed 1200/1500 comparisons
+  Completed 1250/1500 comparisons
+  Completed 1300/1500 comparisons
+  Completed 1350/1500 comparisons
+  Completed 1400/1500 comparisons
+  Completed 1450/1500 comparisons
+  Completed 1500/1500 comparisons
+Simulation complete!
+  Spearman: 0.868
+  Top-5 Accuracy: 40.0%
+
+--- Running with 2000 comparisons ---
+Creating 100 projects...
+Creating 50 judges...
+Database setup complete!
+
+Running simulation with 2000 comparisons...
+  Completed 50/2000 comparisons
+  Completed 100/2000 comparisons
+  Completed 150/2000 comparisons
+  Completed 200/2000 comparisons
+  Completed 250/2000 comparisons
+  Completed 300/2000 comparisons
+  Completed 350/2000 comparisons
+  Completed 400/2000 comparisons
+  Completed 450/2000 comparisons
+  Completed 500/2000 comparisons
+  Completed 550/2000 comparisons
+  Completed 600/2000 comparisons
+  Completed 650/2000 comparisons
+  Completed 700/2000 comparisons
+  Completed 750/2000 comparisons
+  Completed 800/2000 comparisons
+  Completed 850/2000 comparisons
+  Completed 900/2000 comparisons
+  Completed 950/2000 comparisons
+  Completed 1000/2000 comparisons
+  Completed 1050/2000 comparisons
+  Completed 1100/2000 comparisons
+  Completed 1150/2000 comparisons
+  Completed 1200/2000 comparisons
+  Completed 1250/2000 comparisons
+  Completed 1300/2000 comparisons
+  Completed 1350/2000 comparisons
+  Completed 1400/2000 comparisons
+  Completed 1450/2000 comparisons
+  Completed 1500/2000 comparisons
+  Completed 1550/2000 comparisons
+  Completed 1600/2000 comparisons
+  Completed 1650/2000 comparisons
+  Completed 1700/2000 comparisons
+  Completed 1750/2000 comparisons
+  Completed 1800/2000 comparisons
+  Completed 1850/2000 comparisons
+  Completed 1900/2000 comparisons
+  Completed 1950/2000 comparisons
+  Completed 2000/2000 comparisons
+Simulation complete!
+  Spearman: 0.902
+  Top-5 Accuracy: 40.0%
+
+✓ Convergence study results saved to ./simulation_results/batch_20251004_020221/convergence_study.json
+
+======================================================================
+SCENARIO COMPARISON: Testing different judge distributions
+======================================================================
+
+--- Baseline (Mostly Reliable Judges) ---
+    Standard scenario with majority reliable judges
+    Distribution: {'reliable': 0.7, 'unreliable': 0.2, 'biased': 0.05, 'random': 0.05}
+Creating 100 projects...
+Creating 50 judges...
+Database setup complete!
+
+Running simulation with 2000 comparisons...
+  Completed 50/2000 comparisons
+  Completed 100/2000 comparisons
+  Completed 150/2000 comparisons
+  Completed 200/2000 comparisons
+  Completed 250/2000 comparisons
+  Completed 300/2000 comparisons
+  Completed 350/2000 comparisons
+  Completed 400/2000 comparisons
+  Completed 450/2000 comparisons
+  Completed 500/2000 comparisons
+  Completed 550/2000 comparisons
+  Completed 600/2000 comparisons
+  Completed 650/2000 comparisons
+  Completed 700/2000 comparisons
+  Completed 750/2000 comparisons
+  Completed 800/2000 comparisons
+  Completed 850/2000 comparisons
+  Completed 900/2000 comparisons
+  Completed 950/2000 comparisons
+  Completed 1000/2000 comparisons
+  Completed 1050/2000 comparisons
+  Completed 1100/2000 comparisons
+  Completed 1150/2000 comparisons
+  Completed 1200/2000 comparisons
+  Completed 1250/2000 comparisons
+  Completed 1300/2000 comparisons
+  Completed 1350/2000 comparisons
+  Completed 1400/2000 comparisons
+  Completed 1450/2000 comparisons
+  Completed 1500/2000 comparisons
+  Completed 1550/2000 comparisons
+  Completed 1600/2000 comparisons
+  Completed 1650/2000 comparisons
+  Completed 1700/2000 comparisons
+  Completed 1750/2000 comparisons
+  Completed 1800/2000 comparisons
+  Completed 1850/2000 comparisons
+  Completed 1900/2000 comparisons
+  Completed 1950/2000 comparisons
+  Completed 2000/2000 comparisons
+Simulation complete!
+    Results:
+      Spearman:       0.893
+      Top-5 Accuracy: 80.0%
+      Mean Error:     9.6 positions
+
+--- High Quality Judges ---
+    90% reliable judges - best case scenario
+    Distribution: {'reliable': 0.9, 'unreliable': 0.05, 'biased': 0.03, 'random': 0.02}
+Creating 100 projects...
+Creating 50 judges...
+Database setup complete!
+
+Running simulation with 2000 comparisons...
+  Completed 50/2000 comparisons
+  Completed 100/2000 comparisons
+  Completed 150/2000 comparisons
+  Completed 200/2000 comparisons
+  Completed 250/2000 comparisons
+  Completed 300/2000 comparisons
+  Completed 350/2000 comparisons
+  Completed 400/2000 comparisons
+  Completed 450/2000 comparisons
+  Completed 500/2000 comparisons
+  Completed 550/2000 comparisons
+  Completed 600/2000 comparisons
+  Completed 650/2000 comparisons
+  Completed 700/2000 comparisons
+  Completed 750/2000 comparisons
+  Completed 800/2000 comparisons
+  Completed 850/2000 comparisons
+  Completed 900/2000 comparisons
+  Completed 950/2000 comparisons
+  Completed 1000/2000 comparisons
+  Completed 1050/2000 comparisons
+  Completed 1100/2000 comparisons
+  Completed 1150/2000 comparisons
+  Completed 1200/2000 comparisons
+  Completed 1250/2000 comparisons
+  Completed 1300/2000 comparisons
+  Completed 1350/2000 comparisons
+  Completed 1400/2000 comparisons
+  Completed 1450/2000 comparisons
+  Completed 1500/2000 comparisons
+  Completed 1550/2000 comparisons
+  Completed 1600/2000 comparisons
+  Completed 1650/2000 comparisons
+  Completed 1700/2000 comparisons
+  Completed 1750/2000 comparisons
+  Completed 1800/2000 comparisons
+  Completed 1850/2000 comparisons
+  Completed 1900/2000 comparisons
+  Completed 1950/2000 comparisons
+  Completed 2000/2000 comparisons
+Simulation complete!
+    Results:
+      Spearman:       0.920
+      Top-5 Accuracy: 80.0%
+      Mean Error:     9.4 positions
+
+--- Mixed Quality Judges ---
+    Half reliable, half problematic judges
+    Distribution: {'reliable': 0.5, 'unreliable': 0.3, 'biased': 0.1, 'random': 0.1}
+Creating 100 projects...
+Creating 50 judges...
+Database setup complete!
+
+Running simulation with 2000 comparisons...
+  Completed 50/2000 comparisons
+  Completed 100/2000 comparisons
+  Completed 150/2000 comparisons
+  Completed 200/2000 comparisons
+  Completed 250/2000 comparisons
+  Completed 300/2000 comparisons
+  Completed 350/2000 comparisons
+  Completed 400/2000 comparisons
+  Completed 450/2000 comparisons
+  Completed 500/2000 comparisons
+  Completed 550/2000 comparisons
+  Completed 600/2000 comparisons
+  Completed 650/2000 comparisons
+  Completed 700/2000 comparisons
+  Completed 750/2000 comparisons
+  Completed 800/2000 comparisons
+  Completed 850/2000 comparisons
+  Completed 900/2000 comparisons
+  Completed 950/2000 comparisons
+  Completed 1000/2000 comparisons
+  Completed 1050/2000 comparisons
+  Completed 1100/2000 comparisons
+  Completed 1150/2000 comparisons
+  Completed 1200/2000 comparisons
+  Completed 1250/2000 comparisons
+  Completed 1300/2000 comparisons
+  Completed 1350/2000 comparisons
+  Completed 1400/2000 comparisons
+  Completed 1450/2000 comparisons
+  Completed 1500/2000 comparisons
+  Completed 1550/2000 comparisons
+  Completed 1600/2000 comparisons
+  Completed 1650/2000 comparisons
+  Completed 1700/2000 comparisons
+  Completed 1750/2000 comparisons
+  Completed 1800/2000 comparisons
+  Completed 1850/2000 comparisons
+  Completed 1900/2000 comparisons
+  Completed 1950/2000 comparisons
+  Completed 2000/2000 comparisons
+Simulation complete!
+    Results:
+      Spearman:       0.880
+      Top-5 Accuracy: 40.0%
+      Mean Error:     10.8 positions
+
+--- Low Quality Judges ---
+    Majority unreliable judges - worst case
+    Distribution: {'reliable': 0.3, 'unreliable': 0.4, 'biased': 0.2, 'random': 0.1}
+Creating 100 projects...
+Creating 50 judges...
+Database setup complete!
+
+Running simulation with 2000 comparisons...
+  Completed 50/2000 comparisons
+  Completed 100/2000 comparisons
+  Completed 150/2000 comparisons
+  Completed 200/2000 comparisons
+  Completed 250/2000 comparisons
+  Completed 300/2000 comparisons
+  Completed 350/2000 comparisons
+  Completed 400/2000 comparisons
+  Completed 450/2000 comparisons
+  Completed 500/2000 comparisons
+  Completed 550/2000 comparisons
+  Completed 600/2000 comparisons
+  Completed 650/2000 comparisons
+  Completed 700/2000 comparisons
+  Completed 750/2000 comparisons
+  Completed 800/2000 comparisons
+  Completed 850/2000 comparisons
+  Completed 900/2000 comparisons
+  Completed 950/2000 comparisons
+  Completed 1000/2000 comparisons
+  Completed 1050/2000 comparisons
+  Completed 1100/2000 comparisons
+  Completed 1150/2000 comparisons
+  Completed 1200/2000 comparisons
+  Completed 1250/2000 comparisons
+  Completed 1300/2000 comparisons
+  Completed 1350/2000 comparisons
+  Completed 1400/2000 comparisons
+  Completed 1450/2000 comparisons
+  Completed 1500/2000 comparisons
+  Completed 1550/2000 comparisons
+  Completed 1600/2000 comparisons
+  Completed 1650/2000 comparisons
+  Completed 1700/2000 comparisons
+  Completed 1750/2000 comparisons
+  Completed 1800/2000 comparisons
+  Completed 1850/2000 comparisons
+  Completed 1900/2000 comparisons
+  Completed 1950/2000 comparisons
+  Completed 2000/2000 comparisons
+Simulation complete!
+    Results:
+      Spearman:       0.858
+      Top-5 Accuracy: 40.0%
+      Mean Error:     11.7 positions
+
+--- Heavily Biased Judges ---
+    Many judges with systematic biases
+    Distribution: {'reliable': 0.4, 'unreliable': 0.1, 'biased': 0.4, 'random': 0.1}
+Creating 100 projects...
+Creating 50 judges...
+Database setup complete!
+
+Running simulation with 2000 comparisons...
+  Completed 50/2000 comparisons
+  Completed 100/2000 comparisons
+  Completed 150/2000 comparisons
+  Completed 200/2000 comparisons
+  Completed 250/2000 comparisons
+  Completed 300/2000 comparisons
+  Completed 350/2000 comparisons
+  Completed 400/2000 comparisons
+  Completed 450/2000 comparisons
+  Completed 500/2000 comparisons
+  Completed 550/2000 comparisons
+  Completed 600/2000 comparisons
+  Completed 650/2000 comparisons
+  Completed 700/2000 comparisons
+  Completed 750/2000 comparisons
+  Completed 800/2000 comparisons
+  Completed 850/2000 comparisons
+  Completed 900/2000 comparisons
+  Completed 950/2000 comparisons
+  Completed 1000/2000 comparisons
+  Completed 1050/2000 comparisons
+  Completed 1100/2000 comparisons
+  Completed 1150/2000 comparisons
+  Completed 1200/2000 comparisons
+  Completed 1250/2000 comparisons
+  Completed 1300/2000 comparisons
+  Completed 1350/2000 comparisons
+  Completed 1400/2000 comparisons
+  Completed 1450/2000 comparisons
+  Completed 1500/2000 comparisons
+  Completed 1550/2000 comparisons
+  Completed 1600/2000 comparisons
+  Completed 1650/2000 comparisons
+  Completed 1700/2000 comparisons
+  Completed 1750/2000 comparisons
+  Completed 1800/2000 comparisons
+  Completed 1850/2000 comparisons
+  Completed 1900/2000 comparisons
+  Completed 1950/2000 comparisons
+  Completed 2000/2000 comparisons
+Simulation complete!
+    Results:
+      Spearman:       0.929
+      Top-5 Accuracy: 40.0%
+      Mean Error:     8.4 positions
+
+✓ Scenario comparison saved to ./simulation_results/batch_20251004_020221/scenario_comparison.json
+
+======================================================================
+MONTE CARLO TRIALS: Running 10 independent simulations
+======================================================================
+
+--- Trial 1/10 ---
+Creating 100 projects...
+Creating 50 judges...
+Database setup complete!
+
+Running simulation with 2000 comparisons...
+  Completed 50/2000 comparisons
+  Completed 100/2000 comparisons
+  Completed 150/2000 comparisons
+  Completed 200/2000 comparisons
+  Completed 250/2000 comparisons
+  Completed 300/2000 comparisons
+  Completed 350/2000 comparisons
+  Completed 400/2000 comparisons
+  Completed 450/2000 comparisons
+  Completed 500/2000 comparisons
+  Completed 550/2000 comparisons
+  Completed 600/2000 comparisons
+  Completed 650/2000 comparisons
+  Completed 700/2000 comparisons
+  Completed 750/2000 comparisons
+  Completed 800/2000 comparisons
+  Completed 850/2000 comparisons
+  Completed 900/2000 comparisons
+  Completed 950/2000 comparisons
+  Completed 1000/2000 comparisons
+  Completed 1050/2000 comparisons
+  Completed 1100/2000 comparisons
+  Completed 1150/2000 comparisons
+  Completed 1200/2000 comparisons
+  Completed 1250/2000 comparisons
+  Completed 1300/2000 comparisons
+  Completed 1350/2000 comparisons
+  Completed 1400/2000 comparisons
+  Completed 1450/2000 comparisons
+  Completed 1500/2000 comparisons
+  Completed 1550/2000 comparisons
+  Completed 1600/2000 comparisons
+  Completed 1650/2000 comparisons
+  Completed 1700/2000 comparisons
+  Completed 1750/2000 comparisons
+  Completed 1800/2000 comparisons
+  Completed 1850/2000 comparisons
+  Completed 1900/2000 comparisons
+  Completed 1950/2000 comparisons
+  Completed 2000/2000 comparisons
+Simulation complete!
+  Spearman: 0.911
+
+--- Trial 2/10 ---
+Creating 100 projects...
+Creating 50 judges...
+Database setup complete!
+
+Running simulation with 2000 comparisons...
+  Completed 50/2000 comparisons
+  Completed 100/2000 comparisons
+  Completed 150/2000 comparisons
+  Completed 200/2000 comparisons
+  Completed 250/2000 comparisons
+  Completed 300/2000 comparisons
+  Completed 350/2000 comparisons
+  Completed 400/2000 comparisons
+  Completed 450/2000 comparisons
+  Completed 500/2000 comparisons
+  Completed 550/2000 comparisons
+  Completed 600/2000 comparisons
+  Completed 650/2000 comparisons
+  Completed 700/2000 comparisons
+  Completed 750/2000 comparisons
+  Completed 800/2000 comparisons
+  Completed 850/2000 comparisons
+  Completed 900/2000 comparisons
+  Completed 950/2000 comparisons
+  Completed 1000/2000 comparisons
+  Completed 1050/2000 comparisons
+  Completed 1100/2000 comparisons
+  Completed 1150/2000 comparisons
+  Completed 1200/2000 comparisons
+  Completed 1250/2000 comparisons
+  Completed 1300/2000 comparisons
+  Completed 1350/2000 comparisons
+  Completed 1400/2000 comparisons
+  Completed 1450/2000 comparisons
+  Completed 1500/2000 comparisons
+  Completed 1550/2000 comparisons
+  Completed 1600/2000 comparisons
+  Completed 1650/2000 comparisons
+  Completed 1700/2000 comparisons
+  Completed 1750/2000 comparisons
+  Completed 1800/2000 comparisons
+  Completed 1850/2000 comparisons
+  Completed 1900/2000 comparisons
+  Completed 1950/2000 comparisons
+  Completed 2000/2000 comparisons
+Simulation complete!
+  Spearman: 0.891
+
+--- Trial 3/10 ---
+Creating 100 projects...
+Creating 50 judges...
+Database setup complete!
+
+Running simulation with 2000 comparisons...
+  Completed 50/2000 comparisons
+  Completed 100/2000 comparisons
+  Completed 150/2000 comparisons
+  Completed 200/2000 comparisons
+  Completed 250/2000 comparisons
+  Completed 300/2000 comparisons
+  Completed 350/2000 comparisons
+  Completed 400/2000 comparisons
+  Completed 450/2000 comparisons
+  Completed 500/2000 comparisons
+  Completed 550/2000 comparisons
+  Completed 600/2000 comparisons
+  Completed 650/2000 comparisons
+  Completed 700/2000 comparisons
+  Completed 750/2000 comparisons
+  Completed 800/2000 comparisons
+  Completed 850/2000 comparisons
+  Completed 900/2000 comparisons
+  Completed 950/2000 comparisons
+  Completed 1000/2000 comparisons
+  Completed 1050/2000 comparisons
+  Completed 1100/2000 comparisons
+  Completed 1150/2000 comparisons
+  Completed 1200/2000 comparisons
+  Completed 1250/2000 comparisons
+  Completed 1300/2000 comparisons
+  Completed 1350/2000 comparisons
+  Completed 1400/2000 comparisons
+  Completed 1450/2000 comparisons
+  Completed 1500/2000 comparisons
+  Completed 1550/2000 comparisons
+  Completed 1600/2000 comparisons
+  Completed 1650/2000 comparisons
+  Completed 1700/2000 comparisons
+  Completed 1750/2000 comparisons
+  Completed 1800/2000 comparisons
+  Completed 1850/2000 comparisons
+  Completed 1900/2000 comparisons
+  Completed 1950/2000 comparisons
+  Completed 2000/2000 comparisons
+Simulation complete!
+  Spearman: 0.888
+
+--- Trial 4/10 ---
+Creating 100 projects...
+Creating 50 judges...
+Database setup complete!
+
+Running simulation with 2000 comparisons...
+  Completed 50/2000 comparisons
+  Completed 100/2000 comparisons
+  Completed 150/2000 comparisons
+  Completed 200/2000 comparisons
+  Completed 250/2000 comparisons
+  Completed 300/2000 comparisons
+  Completed 350/2000 comparisons
+  Completed 400/2000 comparisons
+  Completed 450/2000 comparisons
+  Completed 500/2000 comparisons
+  Completed 550/2000 comparisons
+  Completed 600/2000 comparisons
+  Completed 650/2000 comparisons
+  Completed 700/2000 comparisons
+  Completed 750/2000 comparisons
+  Completed 800/2000 comparisons
+  Completed 850/2000 comparisons
+  Completed 900/2000 comparisons
+  Completed 950/2000 comparisons
+  Completed 1000/2000 comparisons
+  Completed 1050/2000 comparisons
+  Completed 1100/2000 comparisons
+  Completed 1150/2000 comparisons
+  Completed 1200/2000 comparisons
+  Completed 1250/2000 comparisons
+  Completed 1300/2000 comparisons
+  Completed 1350/2000 comparisons
+  Completed 1400/2000 comparisons
+  Completed 1450/2000 comparisons
+  Completed 1500/2000 comparisons
+  Completed 1550/2000 comparisons
+  Completed 1600/2000 comparisons
+  Completed 1650/2000 comparisons
+  Completed 1700/2000 comparisons
+  Completed 1750/2000 comparisons
+  Completed 1800/2000 comparisons
+  Completed 1850/2000 comparisons
+  Completed 1900/2000 comparisons
+  Completed 1950/2000 comparisons
+  Completed 2000/2000 comparisons
+Simulation complete!
+  Spearman: 0.910
+
+--- Trial 5/10 ---
+Creating 100 projects...
+Creating 50 judges...
+Database setup complete!
+
+Running simulation with 2000 comparisons...
+  Completed 50/2000 comparisons
+  Completed 100/2000 comparisons
+  Completed 150/2000 comparisons
+  Completed 200/2000 comparisons
+  Completed 250/2000 comparisons
+  Completed 300/2000 comparisons
+  Completed 350/2000 comparisons
+  Completed 400/2000 comparisons
+  Completed 450/2000 comparisons
+  Completed 500/2000 comparisons
+  Completed 550/2000 comparisons
+  Completed 600/2000 comparisons
+  Completed 650/2000 comparisons
+  Completed 700/2000 comparisons
+  Completed 750/2000 comparisons
+  Completed 800/2000 comparisons
+  Completed 850/2000 comparisons
+  Completed 900/2000 comparisons
+  Completed 950/2000 comparisons
+  Completed 1000/2000 comparisons
+  Completed 1050/2000 comparisons
+  Completed 1100/2000 comparisons
+  Completed 1150/2000 comparisons
+  Completed 1200/2000 comparisons
+  Completed 1250/2000 comparisons
+  Completed 1300/2000 comparisons
+  Completed 1350/2000 comparisons
+  Completed 1400/2000 comparisons
+  Completed 1450/2000 comparisons
+  Completed 1500/2000 comparisons
+  Completed 1550/2000 comparisons
+  Completed 1600/2000 comparisons
+  Completed 1650/2000 comparisons
+  Completed 1700/2000 comparisons
+  Completed 1750/2000 comparisons
+  Completed 1800/2000 comparisons
+  Completed 1850/2000 comparisons
+  Completed 1900/2000 comparisons
+  Completed 1950/2000 comparisons
+  Completed 2000/2000 comparisons
+Simulation complete!
+  Spearman: 0.930
+
+--- Trial 6/10 ---
+Creating 100 projects...
+Creating 50 judges...
+Database setup complete!
+
+Running simulation with 2000 comparisons...
+  Completed 50/2000 comparisons
+  Completed 100/2000 comparisons
+  Completed 150/2000 comparisons
+  Completed 200/2000 comparisons
+  Completed 250/2000 comparisons
+  Completed 300/2000 comparisons
+  Completed 350/2000 comparisons
+  Completed 400/2000 comparisons
+  Completed 450/2000 comparisons
+  Completed 500/2000 comparisons
+  Completed 550/2000 comparisons
+  Completed 600/2000 comparisons
+  Completed 650/2000 comparisons
+  Completed 700/2000 comparisons
+  Completed 750/2000 comparisons
+  Completed 800/2000 comparisons
+  Completed 850/2000 comparisons
+  Completed 900/2000 comparisons
+  Completed 950/2000 comparisons
+  Completed 1000/2000 comparisons
+  Completed 1050/2000 comparisons
+  Completed 1100/2000 comparisons
+  Completed 1150/2000 comparisons
+  Completed 1200/2000 comparisons
+  Completed 1250/2000 comparisons
+  Completed 1300/2000 comparisons
+  Completed 1350/2000 comparisons
+  Completed 1400/2000 comparisons
+  Completed 1450/2000 comparisons
+  Completed 1500/2000 comparisons
+  Completed 1550/2000 comparisons
+  Completed 1600/2000 comparisons
+  Completed 1650/2000 comparisons
+  Completed 1700/2000 comparisons
+  Completed 1750/2000 comparisons
+  Completed 1800/2000 comparisons
+  Completed 1850/2000 comparisons
+  Completed 1900/2000 comparisons
+  Completed 1950/2000 comparisons
+  Completed 2000/2000 comparisons
+Simulation complete!
+  Spearman: 0.876
+
+--- Trial 7/10 ---
+Creating 100 projects...
+Creating 50 judges...
+Database setup complete!
+
+Running simulation with 2000 comparisons...
+  Completed 50/2000 comparisons
+  Completed 100/2000 comparisons
+  Completed 150/2000 comparisons
+  Completed 200/2000 comparisons
+  Completed 250/2000 comparisons
+  Completed 300/2000 comparisons
+  Completed 350/2000 comparisons
+  Completed 400/2000 comparisons
+  Completed 450/2000 comparisons
+  Completed 500/2000 comparisons
+  Completed 550/2000 comparisons
+  Completed 600/2000 comparisons
+  Completed 650/2000 comparisons
+  Completed 700/2000 comparisons
+  Completed 750/2000 comparisons
+  Completed 800/2000 comparisons
+  Completed 850/2000 comparisons
+  Completed 900/2000 comparisons
+  Completed 950/2000 comparisons
+  Completed 1000/2000 comparisons
+  Completed 1050/2000 comparisons
+  Completed 1100/2000 comparisons
+  Completed 1150/2000 comparisons
+  Completed 1200/2000 comparisons
+  Completed 1250/2000 comparisons
+  Completed 1300/2000 comparisons
+  Completed 1350/2000 comparisons
+  Completed 1400/2000 comparisons
+  Completed 1450/2000 comparisons
+  Completed 1500/2000 comparisons
+  Completed 1550/2000 comparisons
+  Completed 1600/2000 comparisons
+  Completed 1650/2000 comparisons
+  Completed 1700/2000 comparisons
+  Completed 1750/2000 comparisons
+  Completed 1800/2000 comparisons
+  Completed 1850/2000 comparisons
+  Completed 1900/2000 comparisons
+  Completed 1950/2000 comparisons
+  Completed 2000/2000 comparisons
+Simulation complete!
+  Spearman: 0.892
+
+--- Trial 8/10 ---
+Creating 100 projects...
+Creating 50 judges...
+Database setup complete!
+
+Running simulation with 2000 comparisons...
+  Completed 50/2000 comparisons
+  Completed 100/2000 comparisons
+  Completed 150/2000 comparisons
+  Completed 200/2000 comparisons
+  Completed 250/2000 comparisons
+  Completed 300/2000 comparisons
+  Completed 350/2000 comparisons
+  Completed 400/2000 comparisons
+  Completed 450/2000 comparisons
+  Completed 500/2000 comparisons
+  Completed 550/2000 comparisons
+  Completed 600/2000 comparisons
+  Completed 650/2000 comparisons
+  Completed 700/2000 comparisons
+  Completed 750/2000 comparisons
+  Completed 800/2000 comparisons
+  Completed 850/2000 comparisons
+  Completed 900/2000 comparisons
+  Completed 950/2000 comparisons
+  Completed 1000/2000 comparisons
+  Completed 1050/2000 comparisons
+  Completed 1100/2000 comparisons
+  Completed 1150/2000 comparisons
+  Completed 1200/2000 comparisons
+  Completed 1250/2000 comparisons
+  Completed 1300/2000 comparisons
+  Completed 1350/2000 comparisons
+  Completed 1400/2000 comparisons
+  Completed 1450/2000 comparisons
+  Completed 1500/2000 comparisons
+  Completed 1550/2000 comparisons
+  Completed 1600/2000 comparisons
+  Completed 1650/2000 comparisons
+  Completed 1700/2000 comparisons
+  Completed 1750/2000 comparisons
+  Completed 1800/2000 comparisons
+  Completed 1850/2000 comparisons
+  Completed 1900/2000 comparisons
+  Completed 1950/2000 comparisons
+  Completed 2000/2000 comparisons
+Simulation complete!
+  Spearman: 0.925
+
+--- Trial 9/10 ---
+Creating 100 projects...
+Creating 50 judges...
+Database setup complete!
+
+Running simulation with 2000 comparisons...
+  Completed 50/2000 comparisons
+  Completed 100/2000 comparisons
+  Completed 150/2000 comparisons
+  Completed 200/2000 comparisons
+  Completed 250/2000 comparisons
+  Completed 300/2000 comparisons
+  Completed 350/2000 comparisons
+  Completed 400/2000 comparisons
+  Completed 450/2000 comparisons
+  Completed 500/2000 comparisons
+  Completed 550/2000 comparisons
+  Completed 600/2000 comparisons
+  Completed 650/2000 comparisons
+  Completed 700/2000 comparisons
+  Completed 750/2000 comparisons
+  Completed 800/2000 comparisons
+  Completed 850/2000 comparisons
+  Completed 900/2000 comparisons
+  Completed 950/2000 comparisons
+  Completed 1000/2000 comparisons
+  Completed 1050/2000 comparisons
+  Completed 1100/2000 comparisons
+  Completed 1150/2000 comparisons
+  Completed 1200/2000 comparisons
+  Completed 1250/2000 comparisons
+  Completed 1300/2000 comparisons
+  Completed 1350/2000 comparisons
+  Completed 1400/2000 comparisons
+  Completed 1450/2000 comparisons
+  Completed 1500/2000 comparisons
+  Completed 1550/2000 comparisons
+  Completed 1600/2000 comparisons
+  Completed 1650/2000 comparisons
+  Completed 1700/2000 comparisons
+  Completed 1750/2000 comparisons
+  Completed 1800/2000 comparisons
+  Completed 1850/2000 comparisons
+  Completed 1900/2000 comparisons
+  Completed 1950/2000 comparisons
+  Completed 2000/2000 comparisons
+Simulation complete!
+  Spearman: 0.909
+
+--- Trial 10/10 ---
+Creating 100 projects...
+Creating 50 judges...
+Database setup complete!
+
+Running simulation with 2000 comparisons...
+  Completed 50/2000 comparisons
+  Completed 100/2000 comparisons
+  Completed 150/2000 comparisons
+  Completed 200/2000 comparisons
+  Completed 250/2000 comparisons
+  Completed 300/2000 comparisons
+  Completed 350/2000 comparisons
+  Completed 400/2000 comparisons
+  Completed 450/2000 comparisons
+  Completed 500/2000 comparisons
+  Completed 550/2000 comparisons
+  Completed 600/2000 comparisons
+  Completed 650/2000 comparisons
+  Completed 700/2000 comparisons
+  Completed 750/2000 comparisons
+  Completed 800/2000 comparisons
+  Completed 850/2000 comparisons
+  Completed 900/2000 comparisons
+  Completed 950/2000 comparisons
+  Completed 1000/2000 comparisons
+  Completed 1050/2000 comparisons
+  Completed 1100/2000 comparisons
+  Completed 1150/2000 comparisons
+  Completed 1200/2000 comparisons
+  Completed 1250/2000 comparisons
+  Completed 1300/2000 comparisons
+  Completed 1350/2000 comparisons
+  Completed 1400/2000 comparisons
+  Completed 1450/2000 comparisons
+  Completed 1500/2000 comparisons
+  Completed 1550/2000 comparisons
+  Completed 1600/2000 comparisons
+  Completed 1650/2000 comparisons
+  Completed 1700/2000 comparisons
+  Completed 1750/2000 comparisons
+  Completed 1800/2000 comparisons
+  Completed 1850/2000 comparisons
+  Completed 1900/2000 comparisons
+  Completed 1950/2000 comparisons
+  Completed 2000/2000 comparisons
+Simulation complete!
+  Spearman: 0.903
+
+======================================================================
+MONTE CARLO SUMMARY
+======================================================================
+Spearman correlation: 0.904 ± 0.016
+  Range: [0.876, 0.930]
+Top-5 accuracy:       56.0% ± 17.4%
+
+✓ Monte Carlo trials saved to ./simulation_results/batch_20251004_020221/monte_carlo_trials.json
+
+======================================================================
+SCALE STUDY: Testing with different numbers of projects and judges
+======================================================================
+
+--- Small: 25 projects, 10 judges ---
+Creating 25 projects...
+Creating 10 judges...
+Database setup complete!
+
+Running simulation with 2000 comparisons...
+  Completed 50/2000 comparisons
+  Completed 100/2000 comparisons
+  Completed 150/2000 comparisons
+  Completed 200/2000 comparisons
+  Completed 250/2000 comparisons
+  Completed 300/2000 comparisons
+  Completed 350/2000 comparisons
+  Completed 400/2000 comparisons
+  Completed 450/2000 comparisons
+  Completed 500/2000 comparisons
+  Completed 550/2000 comparisons
+  Completed 600/2000 comparisons
+  Completed 650/2000 comparisons
+  Completed 700/2000 comparisons
+  Completed 750/2000 comparisons
+  Completed 800/2000 comparisons
+  Completed 850/2000 comparisons
+  Completed 900/2000 comparisons
+  Completed 950/2000 comparisons
+  Completed 1000/2000 comparisons
+  Completed 1050/2000 comparisons
+  Completed 1100/2000 comparisons
+  Completed 1150/2000 comparisons
+  Completed 1200/2000 comparisons
+  Completed 1250/2000 comparisons
+  Completed 1300/2000 comparisons
+  Completed 1350/2000 comparisons
+  Completed 1400/2000 comparisons
+  Completed 1450/2000 comparisons
+  Completed 1500/2000 comparisons
+  Completed 1550/2000 comparisons
+  Completed 1600/2000 comparisons
+  Completed 1650/2000 comparisons
+  Completed 1700/2000 comparisons
+  Completed 1750/2000 comparisons
+  Completed 1800/2000 comparisons
+  Completed 1850/2000 comparisons
+  Completed 1900/2000 comparisons
+  Completed 1950/2000 comparisons
+  Completed 2000/2000 comparisons
+Simulation complete!
+  Spearman: 0.945
+  Top-5 Accuracy: 100.0%
+
+--- Medium: 50 projects, 20 judges ---
+Creating 50 projects...
+Creating 20 judges...
+Database setup complete!
+
+Running simulation with 2000 comparisons...
+  Completed 50/2000 comparisons
+  Completed 100/2000 comparisons
+  Completed 150/2000 comparisons
+  Completed 200/2000 comparisons
+  Completed 250/2000 comparisons
+  Completed 300/2000 comparisons
+  Completed 350/2000 comparisons
+  Completed 400/2000 comparisons
+  Completed 450/2000 comparisons
+  Completed 500/2000 comparisons
+  Completed 550/2000 comparisons
+  Completed 600/2000 comparisons
+  Completed 650/2000 comparisons
+  Completed 700/2000 comparisons
+  Completed 750/2000 comparisons
+  Completed 800/2000 comparisons
+  Completed 850/2000 comparisons
+  Completed 900/2000 comparisons
+  Completed 950/2000 comparisons
+  Completed 1000/2000 comparisons
+  Completed 1050/2000 comparisons
+  Completed 1100/2000 comparisons
+  Completed 1150/2000 comparisons
+  Completed 1200/2000 comparisons
+  Completed 1250/2000 comparisons
+  Completed 1300/2000 comparisons
+  Completed 1350/2000 comparisons
+  Completed 1400/2000 comparisons
+  Completed 1450/2000 comparisons
+  Completed 1500/2000 comparisons
+  Completed 1550/2000 comparisons
+  Completed 1600/2000 comparisons
+  Completed 1650/2000 comparisons
+  Completed 1700/2000 comparisons
+  Completed 1750/2000 comparisons
+  Completed 1800/2000 comparisons
+  Completed 1850/2000 comparisons
+  Completed 1900/2000 comparisons
+  Completed 1950/2000 comparisons
+  Completed 2000/2000 comparisons
+Simulation complete!
+  Spearman: 0.936
+  Top-5 Accuracy: 60.0%
+
+--- Large: 100 projects, 30 judges ---
+Creating 100 projects...
+Creating 30 judges...
+Database setup complete!
+
+Running simulation with 2000 comparisons...
+  Completed 50/2000 comparisons
+  Completed 100/2000 comparisons
+  Completed 150/2000 comparisons
+  Completed 200/2000 comparisons
+  Completed 250/2000 comparisons
+  Completed 300/2000 comparisons
+  Completed 350/2000 comparisons
+  Completed 400/2000 comparisons
+  Completed 450/2000 comparisons
+  Completed 500/2000 comparisons
+  Completed 550/2000 comparisons
+  Completed 600/2000 comparisons
+  Completed 650/2000 comparisons
+  Completed 700/2000 comparisons
+  Completed 750/2000 comparisons
+  Completed 800/2000 comparisons
+  Completed 850/2000 comparisons
+  Completed 900/2000 comparisons
+  Completed 950/2000 comparisons
+  Completed 1000/2000 comparisons
+  Completed 1050/2000 comparisons
+  Completed 1100/2000 comparisons
+  Completed 1150/2000 comparisons
+  Completed 1200/2000 comparisons
+  Completed 1250/2000 comparisons
+  Completed 1300/2000 comparisons
+  Completed 1350/2000 comparisons
+  Completed 1400/2000 comparisons
+  Completed 1450/2000 comparisons
+  Completed 1500/2000 comparisons
+  Completed 1550/2000 comparisons
+  Completed 1600/2000 comparisons
+  Completed 1650/2000 comparisons
+  Completed 1700/2000 comparisons
+  Completed 1750/2000 comparisons
+  Completed 1800/2000 comparisons
+  Completed 1850/2000 comparisons
+  Completed 1900/2000 comparisons
+  Completed 1950/2000 comparisons
+  Completed 2000/2000 comparisons
+Simulation complete!
+  Spearman: 0.899
+  Top-5 Accuracy: 80.0%
+
+--- Extra Large: 150 projects, 40 judges ---
+Creating 150 projects...
+Creating 40 judges...
+Database setup complete!
+
+Running simulation with 2000 comparisons...
+  Completed 50/2000 comparisons
+  Completed 100/2000 comparisons
+  Completed 150/2000 comparisons
+  Completed 200/2000 comparisons
+  Completed 250/2000 comparisons
+  Completed 300/2000 comparisons
+  Completed 350/2000 comparisons
+  Completed 400/2000 comparisons
+  Completed 450/2000 comparisons
+  Completed 500/2000 comparisons
+  Completed 550/2000 comparisons
+  Completed 600/2000 comparisons
+  Completed 650/2000 comparisons
+  Completed 700/2000 comparisons
+  Completed 750/2000 comparisons
+  Completed 800/2000 comparisons
+  Completed 850/2000 comparisons
+  Completed 900/2000 comparisons
+  Completed 950/2000 comparisons
+  Completed 1000/2000 comparisons
+  Completed 1050/2000 comparisons
+  Completed 1100/2000 comparisons
+  Completed 1150/2000 comparisons
+  Completed 1200/2000 comparisons
+  Completed 1250/2000 comparisons
+  Completed 1300/2000 comparisons
+  Completed 1350/2000 comparisons
+  Completed 1400/2000 comparisons
+  Completed 1450/2000 comparisons
+  Completed 1500/2000 comparisons
+  Completed 1550/2000 comparisons
+  Completed 1600/2000 comparisons
+  Completed 1650/2000 comparisons
+  Completed 1700/2000 comparisons
+  Completed 1750/2000 comparisons
+  Completed 1800/2000 comparisons
+  Completed 1850/2000 comparisons
+  Completed 1900/2000 comparisons
+  Completed 1950/2000 comparisons
+  Completed 2000/2000 comparisons
+Simulation complete!
+  Spearman: 0.859
+  Top-5 Accuracy: 60.0%
+
+✓ Scale study saved to ./simulation_results/batch_20251004_020221/scale_study.json
+
+======================================================================
+ALL STUDIES COMPLETE!
+======================================================================
+Results saved in: ./simulation_results/batch_20251004_020221

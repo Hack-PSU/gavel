@@ -44,3 +44,5 @@ webassets==2.0
 Werkzeug==2.0.1
 xlrd==2.0.1
 zipp==3.5.0
+matplotlib>=3.4.0
+seaborn>=0.11.0
