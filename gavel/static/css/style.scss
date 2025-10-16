@@ -355,12 +355,51 @@ input[type=submit].neutral {
   }
 }
 
+#timer-container {
+    text-align: center;
+    margin-bottom: 1rem;
+    padding: 0.5rem;
+}
+
+#timer-display {
+    margin-bottom: 0.5rem;
+}
+
+#timer {
+    font-family: $heading-font;
+    font-size: 2rem;
+    font-weight: bold;
+    color: $text-color;
+}
+
 #startButton {
-    font-size: 1.5rem;
-    padding: 0.5rem 1rem;
+    font-size: 1.2rem;
+    padding: 0.75rem 1.5rem;
     background-color: $dark;
     color: $light;
-    border: none;
+    border: 2px solid $dark;
     cursor: pointer;
-    margin-bottom: 1rem;
+    text-transform: uppercase;
+    width: 100%;
+
+    &:disabled {
+        background-color: $light-grey;
+        border-color: $light-grey;
+        color: mix($dark, white, 50%);
+        cursor: not-allowed;
+    }
+
+    &.timer-running {
+        background-color: $branding-yellow;
+        border-color: $branding-yellow;
+        color: $dark;
+    }
+}
+
+#timer.timer-complete {
+    color: $branding-green;
+}
+
+#timer-container.timer-complete {
+    background-color: mix($branding-green, white, 25%);
 }

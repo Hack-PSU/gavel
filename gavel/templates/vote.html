@@ -28,9 +28,9 @@
   </div>
 
   <div class="info">
+    {% include "timer.html" %}
     <form action="{{ url_for('vote') }}" method="post">
       <p class="center">Which one is better?</p>
-      {% include "timer.html" %}
       <div id="vote-previous" class="radio-button button-left">
         <input type="radio" name="action" id="vote-previous-radio" value="Previous">
         <label for="vote-previous-radio">Previous</label>
