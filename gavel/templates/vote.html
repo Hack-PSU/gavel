@@ -46,6 +46,25 @@
         <label for="vote-skip-radio">Skip</label>
       </div>
 
+      <div id="skip-reason-container" style="margin-top: 1rem;">
+        <label for="skip-reason" style="display: block; margin-bottom: 0.5rem; font-weight: 600;">
+          Skip Reason <span style="color: #d00;">*</span>
+        </label>
+        <select
+          name="skip_reason"
+          id="skip-reason"
+          required
+          style="width: 100%; padding: 0.75rem; border: 1px solid #e4e4e4; border-radius: 4px; font-family: inherit; background: white;"
+        >
+          <option value="">Select a reason...</option>
+          <option value="cannot_find">Cannot find project</option>
+          <option value="conflict_of_interest">Conflict of interest</option>
+          <option value="insufficient_info">Insufficient information</option>
+          <option value="technical_issues">Technical issues</option>
+          <option value="other">Other</option>
+        </select>
+      </div>
+
       <div style="margin-top: 1.5rem;">
         <label for="notes" style="display: block; margin-bottom: 0.5rem; font-weight: 600;">Notes (Optional)</label>
         <textarea
@@ -63,6 +82,90 @@
     </form>
     <script src="{{ url_for('static', filename='js/timer.js') }}"></script>
     <script src="{{ url_for('static', filename='js/smart-button-toggle.js') }}"></script>
+
+    <script>
+      // Skip reason validation
+      const skipReasonContainer = document.getElementById('skip-reason-container');
+      const skipReasonSelect = document.getElementById('skip-reason');
+      const skipRadio = document.getElementById('vote-skip-radio');
+      const previousRadio = document.getElementById('vote-previous-radio');
+      const currentRadio = document.getElementById('vote-current-radio');
+      const form = document.querySelector('form');
+
+      // Initially hide skip reason if not selecting skip
+      function updateSkipReasonVisibility() {
+        if (skipRadio.checked) {
+          skipReasonContainer.style.display = 'block';
+          skipReasonSelect.required = true;
+        } else {
+          skipReasonContainer.style.display = 'none';
+          skipReasonSelect.required = false;
+        }
+      }
+
+      // Listen for changes to action radio buttons
+      skipRadio.addEventListener('change', updateSkipReasonVisibility);
+      previousRadio.addEventListener('change', updateSkipReasonVisibility);
+      currentRadio.addEventListener('change', updateSkipReasonVisibility);
+
+      // Form validation
+      form.addEventListener('submit', function(e) {
+        if (skipRadio.checked && !skipReasonSelect.value) {
+          e.preventDefault();
+          alert('Please select a reason for skipping.');
+          skipReasonSelect.focus();
+          return false;
+        }
+      });
+
+      // Initialize visibility
+      updateSkipReasonVisibility();
+
+      // Check if judging has been closed and smoothly transition to closed page
+      async function checkClosedStatus() {
+        try {
+          const res = await fetch('/api/status');
+          if (!res.ok) return;
+          const data = await res.json();
+          if (data.closed) {
+            await showClosedPage();
+          }
+        } catch (err) {
+          console.error("Error checking closed status:", err);
+        }
+      }
+
+      async function showClosedPage() {
+        try {
+          const res = await fetch('/');
+          if (!res.ok) return;
+          const html = await res.text();
+
+          const parser = new DOMParser();
+          const doc = parser.parseFromString(html, 'text/html');
+          const newBody = doc.querySelector('body');
+
+          if (newBody) {
+            document.body.innerHTML = newBody.innerHTML;
+            // Re-run any scripts in the new content
+            const scripts = document.querySelectorAll('script');
+            scripts.forEach(script => {
+              if (script.textContent) {
+                const newScript = document.createElement('script');
+                newScript.textContent = script.textContent;
+                script.parentNode.replaceChild(newScript, script);
+              }
+            });
+          }
+        } catch (err) {
+          console.error("Error loading closed page:", err);
+          window.location.reload();
+        }
+      }
+
+      // Check every 5 seconds
+      setInterval(checkClosedStatus, 5000);
+    </script>
   </div>
 </div>
 {% endblock %}

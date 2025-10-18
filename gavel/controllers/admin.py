@@ -245,11 +245,17 @@ def item_detail(item_id):
             )
         else:
             skipped = Annotator.query.filter(Annotator.ignore.contains(item))
+
+        # Get skip reasons for this item
+        skip_records = Skip.query.filter_by(item_id=item_id).all()
+        skip_reasons = {s.annotator_id: s.reason for s in skip_records}
+
         return render_template(
             'admin_item.html',
             item=item,
             assigned=assigned,
-            skipped=skipped
+            skipped=skipped,
+            skip_reasons=skip_reasons
         )
 
 @app.route('/admin/annotator/<annotator_id>/')
@@ -267,12 +273,18 @@ def annotator_detail(annotator_id):
             )
         else:
             skipped = []
+
+        # Get skip reasons for this annotator
+        skip_records = Skip.query.filter_by(annotator_id=annotator_id).all()
+        skip_reasons = {s.item_id: s.reason for s in skip_records}
+
         return render_template(
             'admin_annotator.html',
             annotator=annotator,
             login_link=annotator_link(annotator),
             seen=seen,
-            skipped=skipped
+            skipped=skipped,
+            skip_reasons=skip_reasons
         )
 
 def annotator_link(annotator):
