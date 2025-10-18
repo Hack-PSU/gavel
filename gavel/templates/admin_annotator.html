@@ -70,7 +70,14 @@
         <td>
           <ul>
             {% for item in skipped %}
-            <li><a href="{{ url_for('item_detail', item_id=item.id) }}" class="colored">{{ item.name }} [{{ item.id }}]</a></li>
+            <li>
+              <a href="{{ url_for('item_detail', item_id=item.id) }}" class="colored">{{ item.name }} [{{ item.id }}]</a>
+              {% if item.id in skip_reasons %}
+              <span style="color: #666; margin-left: 0.5rem;">
+                ({{ skip_reasons[item.id].replace('_', ' ').title() }})
+              </span>
+              {% endif %}
+            </li>
             {% endfor %}
           </ul>
         </td>

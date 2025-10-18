@@ -72,6 +72,14 @@ def vote():
         if annotator.prev.id == int(request.form['prev_id']) and annotator.next.id == int(request.form['next_id']):
             notes = request.form.get('notes', '').strip() or None
             if request.form['action'] == 'Skip':
+                # Validate skip reason is provided
+                skip_reason = request.form.get('skip_reason', '').strip()
+                if not skip_reason:
+                    raise ValueError('Skip reason is required')
+
+                # Record the skip with reason
+                skip = Skip(annotator, annotator.next, skip_reason)
+                db.session.add(skip)
                 annotator.ignore.append(annotator.next)
             else:
                 # ignore things that were deactivated in the middle of judging
@@ -104,6 +112,14 @@ def begin():
                 annotator.prev = annotator.next
                 annotator.update_next(choose_next(annotator))
             elif request.form['action'] == 'Skip':
+                # Validate skip reason is provided
+                skip_reason = request.form.get('skip_reason', '').strip()
+                if not skip_reason:
+                    raise ValueError('Skip reason is required')
+
+                # Record the skip with reason
+                skip = Skip(annotator, annotator.next, skip_reason)
+                db.session.add(skip)
                 annotator.next = None # will be reset in index
             db.session.commit()
     with_retries(tx)
@@ -295,9 +311,25 @@ def all_notes():
 
 #automatic redirect when judging closes
 @app.route('/api/status')
+@hackpsu_auth_required
 def status():
     """Returns whether judging is closed."""
-    # db.session.expire_all()  #  Make sure we check fresh DB data
     is_closed = Setting.value_of(SETTING_CLOSED) == SETTING_TRUE
     return jsonify({"closed": is_closed})
+
+@app.route('/api/assignment_status')
+@hackpsu_auth_required
+def assignment_status():
+    """Returns whether the current judge has a new assignment available."""
+    annotator = get_current_annotator()
+
+    # Try to assign a new item if the annotator doesn't have one
+    # This mirrors the logic in the index() route
+    if annotator.next is None:
+        maybe_init_annotator()
+        # Refresh the annotator to get the updated state
+        db.session.refresh(annotator)
+
+    has_assignment = annotator.next is not None
+    return jsonify({"has_assignment": has_assignment})
 

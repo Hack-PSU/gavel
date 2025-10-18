@@ -14,11 +14,20 @@
 </div>
 
 <script>
+  let lastNotesData = null;
+
   async function fetchAllNotes() {
     try {
       const res = await fetch('/api/all_notes');
       if (!res.ok) throw new Error('Network error');
       const data = await res.json();
+
+      // Only update if data has changed
+      const dataString = JSON.stringify(data);
+      if (lastNotesData === dataString) {
+        return; // No changes, skip update
+      }
+      lastNotesData = dataString;
 
       const container = document.getElementById('projects-container');
       container.innerHTML = "";
@@ -32,12 +41,21 @@
         const div = document.createElement('div');
         div.classList.add('project');
         div.style.marginBottom = '1.5rem';
-        div.innerHTML = `
-          <h3>${item.project}</h3>
-          <ul>
-            ${item.notes.map(note => `<li>${note}</li>`).join('')}
-          </ul>
-        `;
+
+        // Create h3 with XSS protection
+        const h3 = document.createElement('h3');
+        h3.textContent = item.project;
+
+        // Create ul with XSS protection
+        const ul = document.createElement('ul');
+        item.notes.forEach(note => {
+          const li = document.createElement('li');
+          li.textContent = note;
+          ul.appendChild(li);
+        });
+
+        div.appendChild(h3);
+        div.appendChild(ul);
         container.appendChild(div);
       });
     } catch (err) {
@@ -45,8 +63,98 @@
     }
   }
 
-  // Fetch immediately and auto-refresh every 1 seconds
+  async function checkReopenedStatus() {
+    try {
+      const res = await fetch('/api/status');
+      if (!res.ok) return;
+      const data = await res.json();
+      if (!data.closed) {
+        // Judging has been reopened, check for assignments
+        await checkAssignmentStatus();
+      }
+    } catch (err) {
+      console.error("Error checking reopened status:", err);
+    }
+  }
+
+  async function checkAssignmentStatus() {
+    try {
+      const res = await fetch('/api/assignment_status');
+      if (!res.ok) return;
+      const data = await res.json();
+      if (data.has_assignment) {
+        // Smoothly transition to assignment page
+        await showAssignmentPage();
+      } else {
+        // No assignment yet, show wait page
+        await showWaitPage();
+      }
+    } catch (err) {
+      console.error("Error checking assignment status:", err);
+    }
+  }
+
+  async function showAssignmentPage() {
+    try {
+      const res = await fetch('/');
+      if (!res.ok) return;
+      const html = await res.text();
+
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(html, 'text/html');
+      const newBody = doc.querySelector('body');
+
+      if (newBody) {
+        document.body.innerHTML = newBody.innerHTML;
+        // Re-run any scripts in the new content
+        const scripts = document.querySelectorAll('script');
+        scripts.forEach(script => {
+          if (script.textContent) {
+            const newScript = document.createElement('script');
+            newScript.textContent = script.textContent;
+            script.parentNode.replaceChild(newScript, script);
+          }
+        });
+      }
+    } catch (err) {
+      console.error("Error loading assignment page:", err);
+      window.location.reload();
+    }
+  }
+
+  async function showWaitPage() {
+    try {
+      const res = await fetch('/');
+      if (!res.ok) return;
+      const html = await res.text();
+
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(html, 'text/html');
+      const newBody = doc.querySelector('body');
+
+      if (newBody) {
+        document.body.innerHTML = newBody.innerHTML;
+        // Re-run any scripts in the new content
+        const scripts = document.querySelectorAll('script');
+        scripts.forEach(script => {
+          if (script.textContent) {
+            const newScript = document.createElement('script');
+            newScript.textContent = script.textContent;
+            script.parentNode.replaceChild(newScript, script);
+          }
+        });
+      }
+    } catch (err) {
+      console.error("Error loading wait page:", err);
+      window.location.reload();
+    }
+  }
+
+  // Fetch immediately and auto-refresh every 5 seconds
   fetchAllNotes();
-  setInterval(fetchAllNotes, 1000);
+  checkReopenedStatus();  // Check immediately on page load
+
+  setInterval(fetchAllNotes, 5000);         // every 5s for notes
+  setInterval(checkReopenedStatus, 5000);   // every 5s to check if judging has been reopened
 </script>
 {% endblock %}

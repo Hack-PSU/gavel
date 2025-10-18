@@ -77,7 +77,14 @@
         <td>
           <ul>
             {% for annotator in skipped %}
-            <li><a href="{{ url_for('annotator_detail', annotator_id=annotator.id) }}" class="colored">{{ annotator.name }} [{{ annotator.id }}]</a></li>
+            <li>
+              <a href="{{ url_for('annotator_detail', annotator_id=annotator.id) }}" class="colored">{{ annotator.name }} [{{ annotator.id }}]</a>
+              {% if annotator.id in skip_reasons %}
+              <span style="color: #666; margin-left: 0.5rem;">
+                ({{ skip_reasons[annotator.id].replace('_', ' ').title() }})
+              </span>
+              {% endif %}
+            </li>
             {% endfor %}
           </ul>
         </td>

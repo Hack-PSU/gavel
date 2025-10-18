@@ -9,14 +9,6 @@
   <div class="info">
     {{ content }}
   </div>
-
-  <!-- Notes section -->
-  <div id="notes-container" style="margin-top: 2rem;">
-    <h2 style="margin-bottom: 1rem;">All Judges' Notes</h2>
-    <div id="notes" class="notes-grid">
-      <p><i>Fetching latest notes...</i></p>
-    </div>
-  </div>
 </div>
 
 <!-- Poll API script -->
@@ -27,85 +19,94 @@
       if (!res.ok) return;
       const data = await res.json();
       if (data.closed) {
-        // Reload to switch automatically to Closed page
-        window.location.reload();
+        // Smoothly transition to closed page by fetching and replacing content
+        await showClosedPage();
       }
     } catch (err) {
       console.error("Error checking closed status:", err);
     }
   }
 
-  async function fetchAllNotes() {
+  async function checkAssignmentStatus() {
     try {
-      const res = await fetch('/api/all_notes');
-      if (!res.ok) throw new Error('Network error');
+      const res = await fetch('/api/assignment_status');
+      if (!res.ok) return;
       const data = await res.json();
-
-      const notesDiv = document.getElementById('notes');
-      notesDiv.innerHTML = "";
-
-      if (data.length === 0) {
-        notesDiv.innerHTML = "<p><i>No judged projects yet...</i></p>";
-        return;
+      if (data.has_assignment) {
+        // Smoothly transition to assignment page by fetching and replacing content
+        await showAssignmentPage();
       }
-
-      data.forEach(item => {
-        if (item.notes.length > 0) {
-          const div = document.createElement('div');
-          div.classList.add('note-card');
-          div.innerHTML = `
-            <div class="note-title">${item.project}</div>
-            <ul class="note-list">
-              ${item.notes.map(n => `<li>"${n}"</li>`).join('')}
-            </ul>
-          `;
-          notesDiv.appendChild(div);
-        }
-      });
     } catch (err) {
-      console.error("Error fetching notes:", err);
+      console.error("Error checking assignment status:", err);
     }
   }
 
-  // Fetch immediately and poll every 1 second
-  fetchAllNotes();
-  setInterval(fetchAllNotes, 1000);      // every 1s for notes
-  setInterval(checkClosedStatus, 1000);  // every 1s to check if judging is closed
+  async function showAssignmentPage() {
+    try {
+      const res = await fetch('/');
+      if (!res.ok) return;
+      const html = await res.text();
+
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(html, 'text/html');
+      const newBody = doc.querySelector('body');
+
+      if (newBody) {
+        document.body.innerHTML = newBody.innerHTML;
+        // Re-run any scripts in the new content
+        const scripts = document.querySelectorAll('script');
+        scripts.forEach(script => {
+          if (script.textContent) {
+            const newScript = document.createElement('script');
+            newScript.textContent = script.textContent;
+            script.parentNode.replaceChild(newScript, script);
+          }
+        });
+      }
+    } catch (err) {
+      console.error("Error loading assignment page:", err);
+      window.location.reload();
+    }
+  }
+
+  async function showClosedPage() {
+    try {
+      // Fetch the closed page HTML
+      const res = await fetch('/');
+      if (!res.ok) return;
+      const html = await res.text();
+
+      // Parse the response and replace the body content
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(html, 'text/html');
+      const newContent = doc.querySelector('.item');
+
+      if (newContent) {
+        const currentContent = document.querySelector('.item');
+        if (currentContent) {
+          currentContent.innerHTML = newContent.innerHTML;
+          // Re-run any scripts in the new content
+          const scripts = currentContent.querySelectorAll('script');
+          scripts.forEach(script => {
+            const newScript = document.createElement('script');
+            newScript.textContent = script.textContent;
+            script.parentNode.replaceChild(newScript, script);
+          });
+        }
+      }
+    } catch (err) {
+      console.error("Error loading closed page:", err);
+      // Fallback to reload if smooth transition fails
+      window.location.reload();
+    }
+  }
+
+  // Check immediately on page load and poll every 5 seconds
+  checkAssignmentStatus();
+
+  setInterval(checkClosedStatus, 5000);      // every 5s to check if judging is closed
+  setInterval(checkAssignmentStatus, 5000);  // every 5s to check for new assignments
 </script>
 
 
-<!--Styling-->
-<style>
-  .notes-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-    gap: 1.5rem;
-  }
-  .note-card {
-    background: #fffdfa;
-    border: 1px solid #e2dede;
-    border-radius: 12px;
-    box-shadow: 0 4px 8px rgba(0,0,0,0.06);
-    padding: 1rem 1.2rem;
-    transition: all 0.2s ease;
-  }
-  .note-card:hover {
-    transform: translateY(-3px);
-    box-shadow: 0 6px 12px rgba(0,0,0,0.1);
-  }
-  .note-title {
-    font-weight: bold;
-    font-size: 1.1rem;
-    color: #003366;
-    margin-bottom: 0.5rem;
-  }
-  .note-list {
-    list-style: disc;
-    padding-left: 1.2rem;
-    color: #444;
-  }
-  .note-list li {
-    margin-bottom: 0.3rem;
-  }
-</style>
 {% endblock %}
