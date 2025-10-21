@@ -30,6 +30,7 @@
   <div class="info">
     <form action="{{ url_for('vote') }}" method="post">
       <p class="center">Which one is better?</p>
+      {% include "info.html" %}
       {% include "timer.html" %}
       <div id="vote-previous" class="radio-button button-left">
         <input type="radio" name="action" id="vote-previous-radio" value="Previous">
@@ -63,6 +64,7 @@
     </form>
     <script src="{{ url_for('static', filename='js/timer.js') }}"></script>
     <script src="{{ url_for('static', filename='js/smart-button-toggle.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/info.js') }}"></script>
   </div>
 </div>
 {% endblock %}

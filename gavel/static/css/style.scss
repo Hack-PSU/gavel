@@ -364,3 +364,20 @@ input[type=submit].neutral {
     cursor: pointer;
     margin-bottom: 1rem;
 }
+
+#info-box {
+  width: 100%;
+  border: 2px solid $dark;
+  padding: 1rem;
+  margin-bottom: 1rem;
+}
+
+#info-button {
+    font-size: 1rem;
+    padding: 0.25rem 0.5rem;
+    background-color: $dark;
+    color: $light;
+    border: none;
+    cursor: pointer;
+    margin-bottom: 1rem;
+}

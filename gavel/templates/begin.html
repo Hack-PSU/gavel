@@ -18,6 +18,7 @@
   <div class="info">
     <form action="{{ url_for('begin') }}" method="post">
       <p class="center">Comparison voting begins after you see your first project. Please click <b>CONTINUE</b> after seeing this project or <b>SKIP</b> if you cannot find this project.</p>
+      {% include "info.html" %}
       {% include "timer.html" %}
       <div id="vote-continue" class="radio-button button-full button-gap">
         <input type="radio" name="action" id="vote-continue-radio" value="Continue">
@@ -37,6 +38,7 @@
 
     <script src="{{ url_for('static', filename='js/smart-button-toggle.js') }}"></script>
     <script src="{{ url_for('static', filename='js/timer.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/info.js') }}"></script>
   </div>
 </div>
 {% endblock %}
