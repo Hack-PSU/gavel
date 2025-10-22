@@ -1,5 +1,6 @@
 {% extends "layout.html" %}
 {% block title %}Wait{% endblock %}
+
 {% block content %}
 <div class="item">
   <div class="banner" id="wait-header">
@@ -9,4 +10,103 @@
     {{ content }}
   </div>
 </div>
+
+<!-- Poll API script -->
+<script>
+  async function checkClosedStatus() {
+    try {
+      const res = await fetch('/api/status');
+      if (!res.ok) return;
+      const data = await res.json();
+      if (data.closed) {
+        // Smoothly transition to closed page by fetching and replacing content
+        await showClosedPage();
+      }
+    } catch (err) {
+      console.error("Error checking closed status:", err);
+    }
+  }
+
+  async function checkAssignmentStatus() {
+    try {
+      const res = await fetch('/api/assignment_status');
+      if (!res.ok) return;
+      const data = await res.json();
+      if (data.has_assignment) {
+        // Smoothly transition to assignment page by fetching and replacing content
+        await showAssignmentPage();
+      }
+    } catch (err) {
+      console.error("Error checking assignment status:", err);
+    }
+  }
+
+  async function showAssignmentPage() {
+    try {
+      const res = await fetch('/');
+      if (!res.ok) return;
+      const html = await res.text();
+
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(html, 'text/html');
+      const newBody = doc.querySelector('body');
+
+      if (newBody) {
+        document.body.innerHTML = newBody.innerHTML;
+        // Re-run any scripts in the new content
+        const scripts = document.querySelectorAll('script');
+        scripts.forEach(script => {
+          if (script.textContent) {
+            const newScript = document.createElement('script');
+            newScript.textContent = script.textContent;
+            script.parentNode.replaceChild(newScript, script);
+          }
+        });
+      }
+    } catch (err) {
+      console.error("Error loading assignment page:", err);
+      window.location.reload();
+    }
+  }
+
+  async function showClosedPage() {
+    try {
+      // Fetch the closed page HTML
+      const res = await fetch('/');
+      if (!res.ok) return;
+      const html = await res.text();
+
+      // Parse the response and replace the body content
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(html, 'text/html');
+      const newContent = doc.querySelector('.item');
+
+      if (newContent) {
+        const currentContent = document.querySelector('.item');
+        if (currentContent) {
+          currentContent.innerHTML = newContent.innerHTML;
+          // Re-run any scripts in the new content
+          const scripts = currentContent.querySelectorAll('script');
+          scripts.forEach(script => {
+            const newScript = document.createElement('script');
+            newScript.textContent = script.textContent;
+            script.parentNode.replaceChild(newScript, script);
+          });
+        }
+      }
+    } catch (err) {
+      console.error("Error loading closed page:", err);
+      // Fallback to reload if smooth transition fails
+      window.location.reload();
+    }
+  }
+
+  // Check immediately on page load and poll every 5 seconds
+  checkAssignmentStatus();
+
+  setInterval(checkClosedStatus, 5000);      // every 5s to check if judging is closed
+  setInterval(checkAssignmentStatus, 5000);  // every 5s to check for new assignments
+</script>
+
+
 {% endblock %}
