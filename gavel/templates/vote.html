@@ -28,10 +28,12 @@
   </div>
 
   <div class="info">
-    {% include "timer.html" %}
+    <div class="timer-info-wrapper">
+      {% include "timer.html" %}
+      {% include "info.html" %}
+    </div>
     <form action="{{ url_for('vote') }}" method="post">
       <p class="center">Which one is better?</p>
-      {% include "info.html" %}
       <div id="vote-previous" class="radio-button button-left">
         <input type="radio" name="action" id="vote-previous-radio" value="Previous">
         <label for="vote-previous-radio">Previous</label>
