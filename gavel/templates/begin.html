@@ -16,7 +16,10 @@
   </div>
 
   <div class="info">
-    {% include "timer.html" %}
+    <div class="timer-info-wrapper">
+      {% include "timer.html" %}
+      {% include "info.html" %}
+    </div>
     <form action="{{ url_for('begin') }}" method="post">
       <p class="center">Comparison voting begins after you see your first project. Please click <b>CONTINUE</b> after seeing this project or <b>SKIP</b> if you cannot find this project.</p>
       <div id="vote-continue" class="radio-button button-full button-gap">
@@ -138,6 +141,7 @@
       setInterval(checkClosedStatus, 5000);
     </script>
     <script src="{{ url_for('static', filename='js/timer.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/info.js') }}"></script>
   </div>
 </div>
 {% endblock %}

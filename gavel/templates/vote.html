@@ -28,7 +28,10 @@
   </div>
 
   <div class="info">
-    {% include "timer.html" %}
+    <div class="timer-info-wrapper">
+      {% include "timer.html" %}
+      {% include "info.html" %}
+    </div>
     <form action="{{ url_for('vote') }}" method="post">
       <p class="center">Which one is better?</p>
       <div id="vote-previous" class="radio-button button-left">
@@ -82,6 +85,7 @@
     </form>
     <script src="{{ url_for('static', filename='js/timer.js') }}"></script>
     <script src="{{ url_for('static', filename='js/smart-button-toggle.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/info.js') }}"></script>
 
     <script>
       // Skip reason validation

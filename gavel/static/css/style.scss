@@ -355,10 +355,20 @@ input[type=submit].neutral {
   }
 }
 
-#timer-container {
-    text-align: center;
+.timer-info-wrapper {
+    display: flex;
+    gap: 1rem;
     margin-bottom: 1rem;
+    align-items: stretch;
+}
+
+#timer-container {
+    flex: 1;
+    text-align: center;
     padding: 0.5rem;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
 }
 
 #timer-display {
@@ -402,4 +412,139 @@ input[type=submit].neutral {
 
 #timer-container.timer-complete {
     background-color: mix($branding-green, white, 25%);
+}
+
+.info-container {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+}
+
+#info-button {
+    font-size: 1.2rem;
+    font-weight: bold;
+    text-transform: uppercase;
+    padding: 0.75rem 1.5rem;
+    background-color: $branding-blue;
+    color: $light;
+    border: 2px solid $branding-blue;
+    cursor: pointer;
+    width: 100%;
+    transition: all 0.2s ease;
+    -webkit-border-radius: 0;
+
+    &:hover {
+        background-color: mix($branding-blue, black, 85%);
+        border-color: mix($branding-blue, black, 85%);
+    }
+
+    &:active {
+        transform: scale(0.98);
+    }
+}
+
+// Modal styles
+.modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(0, 0, 0, 0.7);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.3s ease, visibility 0.3s ease;
+
+    &.active {
+        opacity: 1;
+        visibility: visible;
+    }
+}
+
+.modal-content {
+    background-color: $light;
+    border: 3px solid $branding-blue;
+    padding: 2rem;
+    max-width: 600px;
+    max-height: 80vh;
+    width: 90%;
+    overflow-y: auto;
+    position: relative;
+    transform: scale(0.7);
+    opacity: 0;
+    transition: transform 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55), opacity 0.3s ease;
+
+    .modal-overlay.active & {
+        transform: scale(1);
+        opacity: 1;
+    }
+
+    h1, h2 {
+        font-family: $heading-font;
+        color: $dark;
+        margin-top: 0;
+        padding-top: 0;
+    }
+
+    h1 {
+        font-size: 1.75rem;
+        border-bottom: 3px solid $branding-blue;
+        padding-bottom: 0.75rem;
+        margin-bottom: 1.25rem;
+    }
+
+    h2 {
+        font-size: 1.4rem;
+        margin-top: 2rem;
+        margin-bottom: 0.75rem;
+        color: $branding-blue;
+    }
+
+    ol {
+        margin: 0;
+        padding-left: 1.75rem;
+
+        li {
+            margin-bottom: 0.75rem;
+            line-height: 1.7;
+            color: $text-color;
+
+            &:last-child {
+                margin-bottom: 0;
+            }
+        }
+    }
+}
+
+.modal-close {
+    position: absolute;
+    top: 1rem;
+    right: 1rem;
+    background-color: $branding-red;
+    color: $light;
+    border: none;
+    width: 2.5rem;
+    height: 2.5rem;
+    font-size: 1.5rem;
+    font-weight: bold;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+
+    &:hover {
+        background-color: mix($branding-red, black, 85%);
+        transform: rotate(90deg);
+    }
+
+    &:active {
+        transform: rotate(90deg) scale(0.9);
+    }
 }
