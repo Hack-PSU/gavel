@@ -55,7 +55,7 @@ nodaemon=true\n\
 user=root\n\
 \n\
 [program:gavel]\n\
-command=gunicorn -b 0.0.0.0:5000 --worker-class gevent -w 4 gavel:app\n\
+command=gunicorn -b 0.0.0.0:8080 --worker-class gevent -w 4 gavel:app\n\
 autostart=true\n\
 autorestart=true\n\
 stdout_logfile=/dev/stdout\n\
@@ -69,6 +69,7 @@ RUN chmod +x /app/start.sh
 
 # Expose port
 EXPOSE 5000
+EXPOSE 8080
 
 # Start script
 CMD ["/app/start.sh"]
