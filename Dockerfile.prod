@@ -21,7 +21,7 @@ COPY . .
 # Set defaults and internal config
 ENV PYTHONUNBUFFERED=1 \
     FLASK_APP=gavel \
-    PORT=5000 \
+    PORT=8080 \
     # Auth defaults
     AUTH_ENVIRONMENT=production \
     MIN_JUDGE_ROLE=2 \
