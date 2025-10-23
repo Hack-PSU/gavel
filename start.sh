@@ -1,43 +1,64 @@
 #!/bin/bash
 set -e
 
-# Initialize PostgreSQL if needed
-if [ ! -f /var/lib/postgresql/data/PG_VERSION ]; then
-  echo "Initializing PostgreSQL database..."
-  su - postgres -c "/usr/lib/postgresql/*/bin/initdb -D /var/lib/postgresql/data"
-  echo "PostgreSQL initialized"
+# Validate required environment variables
+if [ -z "$DATABASE_URL" ] && [ -z "$DB_URI" ]; then
+  echo "ERROR: DATABASE_URL or DB_URI environment variable must be set"
+  echo "Format: postgresql://username:password@host:port/database"
+  exit 1
 fi
 
-# Start PostgreSQL
-echo "Starting PostgreSQL..."
-su - postgres -c "/usr/lib/postgresql/*/bin/pg_ctl -D /var/lib/postgresql/data -l /tmp/postgresql.log start"
+if [ -z "$SECRET_KEY" ]; then
+  echo "ERROR: SECRET_KEY environment variable must be set"
+  exit 1
+fi
 
-# Wait for PostgreSQL to be ready
-echo "Waiting for PostgreSQL to be ready..."
-for i in {1..30}; do
-  if su - postgres -c "psql -d postgres -c 'SELECT 1' > /dev/null 2>&1"; then
-    echo "PostgreSQL is ready"
+# Extract database connection details for health check
+DB_URL="${DATABASE_URL:-$DB_URI}"
+echo "Using database: $DB_URL"
+
+# Wait for external PostgreSQL to be ready
+echo "Waiting for external PostgreSQL database to be ready..."
+for i in {1..60}; do
+  if python -c "
+import psycopg2
+import sys
+import os
+try:
+    conn = psycopg2.connect(os.environ.get('DATABASE_URL') or os.environ.get('DB_URI'))
+    conn.close()
+    sys.exit(0)
+except Exception as e:
+    sys.exit(1)
+" 2>/dev/null; then
+    echo "PostgreSQL database is ready!"
     break
   fi
-  echo "Waiting for PostgreSQL... ($i/30)"
-  sleep 1
+  echo "Waiting for database... ($i/60)"
+  sleep 2
 done
 
-# Verify gavel user and database exist
-echo "Checking gavel database..."
-if ! su - postgres -c "psql -d postgres -tAc \"SELECT 1 FROM pg_roles WHERE rolname='gavel'\"" | grep -q 1; then
-  echo "Creating gavel user..."
-  su - postgres -c "psql -d postgres -c \"CREATE USER gavel WITH PASSWORD 'gavel_prod_pass';\""
+# Final connection test
+if ! python -c "
+import psycopg2
+import sys
+import os
+try:
+    conn = psycopg2.connect(os.environ.get('DATABASE_URL') or os.environ.get('DB_URI'))
+    conn.close()
+    sys.exit(0)
+except Exception as e:
+    print(f'Failed to connect to database: {e}')
+    sys.exit(1)
+"; then
+  echo "ERROR: Could not connect to external PostgreSQL database"
+  echo "Please verify DATABASE_URL/DB_URI is correct and database is accessible"
+  exit 1
 fi
 
-if ! su - postgres -c "psql -d postgres -tAc \"SELECT 1 FROM pg_database WHERE datname='gavel'\"" | grep -q 1; then
-  echo "Creating gavel database..."
-  su - postgres -c "psql -d postgres -c \"CREATE DATABASE gavel OWNER gavel;\""
-fi
-
-# Initialize Gavel database
-echo "Initializing Gavel database..."
+# Initialize Gavel database schema
+echo "Initializing Gavel database schema..."
 python initialize.py || true
 
-# Start supervisor
+# Start supervisor (which runs Gunicorn)
 exec /usr/bin/supervisord -c /etc/supervisor/conf.d/supervisord.conf

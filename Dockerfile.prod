@@ -1,9 +1,7 @@
 FROM python:3.9-slim
 
-# Install PostgreSQL and dependencies
+# Install dependencies (removed PostgreSQL server, keeping only client libraries)
 RUN apt-get update && apt-get install -y \
-    postgresql \
-    postgresql-contrib \
     gcc \
     python3-dev \
     libpq-dev \
@@ -20,16 +18,10 @@ RUN pip install --no-cache-dir -r requirements.txt gunicorn
 # Copy application code
 COPY . .
 
-# Create PostgreSQL data directory
-RUN mkdir -p /var/lib/postgresql/data && \
-    chown -R postgres:postgres /var/lib/postgresql
-
 # Set defaults and internal config
 ENV PYTHONUNBUFFERED=1 \
     FLASK_APP=gavel \
     PORT=5000 \
-    DATABASE_URL=postgresql://gavel:gavel_prod_pass@localhost:5432/gavel \
-    DB_URI=postgresql://gavel:gavel_prod_pass@localhost:5432/gavel \
     # Auth defaults
     AUTH_ENVIRONMENT=production \
     MIN_JUDGE_ROLE=2 \
@@ -54,21 +46,13 @@ ENV PYTHONUNBUFFERED=1 \
     PROJECT_SYNC_INTERVAL=60
 # Required runtime env vars:
 # - SECRET_KEY
+# - DATABASE_URL (format: postgresql://username:password@host:port/database)
+# - DB_URI (same as DATABASE_URL)
 
-# Create supervisor config
+# Create supervisor config (removed PostgreSQL service)
 RUN echo '[supervisord]\n\
 nodaemon=true\n\
 user=root\n\
-\n\
-[program:postgresql]\n\
-user=postgres\n\
-command=/usr/lib/postgresql/*/bin/postgres -D /var/lib/postgresql/data\n\
-autostart=true\n\
-autorestart=true\n\
-stdout_logfile=/dev/stdout\n\
-stdout_logfile_maxbytes=0\n\
-stderr_logfile=/dev/stderr\n\
-stderr_logfile_maxbytes=0\n\
 \n\
 [program:gavel]\n\
 command=gunicorn -b 0.0.0.0:5000 --worker-class gevent -w 4 gavel:app\n\
@@ -85,9 +69,6 @@ RUN chmod +x /app/start.sh
 
 # Expose port
 EXPOSE 5000
-
-# Volume for PostgreSQL data persistence
-VOLUME ["/var/lib/postgresql/data"]
 
 # Start script
 CMD ["/app/start.sh"]
