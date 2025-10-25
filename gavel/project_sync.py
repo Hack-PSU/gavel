@@ -9,6 +9,7 @@ from gavel.models import Item, db
 from gavel import app
 
 HACKPSU_API_URL = os.environ.get('HACKPSU_API_URL', 'https://apiv3.hackpsu.org/judging/projects')
+CATEGORY_FILTER = os.environ.get('CATEGORY_FILTER')  # Optional category filter
 
 def extract_table_number(name):
     """Extract table number from project name like '(1) Space Goggles'"""
@@ -20,9 +21,32 @@ def extract_table_number(name):
         return table_num, clean_name
     return None, name
 
+def matches_category_filter(categories_str, filter_category):
+    """
+    Check if any category in the comma-separated categories string matches the filter.
+
+    Args:
+        categories_str: Comma-separated string of categories (e.g., "Web,Mobile,AI")
+        filter_category: The category to filter for (e.g., "Web")
+
+    Returns:
+        True if any category matches the filter, False otherwise
+    """
+    if not categories_str:
+        return False
+
+    # Split by comma and strip whitespace from each category
+    categories = [cat.strip() for cat in categories_str.split(',')]
+
+    # Check if the filter category matches any of the project's categories
+    return filter_category in categories
+
 def sync_projects_from_api():
     """Fetch projects from HackPSU API and sync to Gavel"""
     print("[SYNC] Starting project sync from HackPSU API...")
+
+    if CATEGORY_FILTER:
+        print(f"[SYNC] Filtering projects by category: {CATEGORY_FILTER}")
 
     try:
         # Fetch projects from API
@@ -38,8 +62,17 @@ def sync_projects_from_api():
         with app.app_context():
             synced_count = 0
             updated_count = 0
+            filtered_count = 0
 
             for project_data in projects:
+                # Apply category filter if specified
+                if CATEGORY_FILTER:
+                    categories = project_data.get('categories', '')
+                    if not matches_category_filter(categories, CATEGORY_FILTER):
+                        filtered_count += 1
+                        continue
+
+
                 project_id = project_data.get('id')
                 raw_name = project_data.get('name', f'Project {project_id}')
 
@@ -77,7 +110,10 @@ def sync_projects_from_api():
                         print(f"[SYNC] Updated location for: {clean_name} to {location}")
 
             db.session.commit()
-            print(f"[SYNC] Complete: {synced_count} created, {updated_count} updated")
+            if CATEGORY_FILTER:
+                print(f"[SYNC] Complete: {synced_count} created, {updated_count} updated, {filtered_count} filtered out")
+            else:
+                print(f"[SYNC] Complete: {synced_count} created, {updated_count} updated")
 
     except Exception as e:
         print(f"[SYNC ERROR] Failed to sync projects: {e}")
