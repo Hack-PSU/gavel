@@ -37,6 +37,7 @@ def matches_category_filter(categories_str, filter_category):
 
     # Split by comma and strip whitespace from each category
     categories = [cat.strip() for cat in categories_str.split(',')]
+    print(categories)
 
     # Check if the filter category matches any of the project's categories
     return filter_category in categories
