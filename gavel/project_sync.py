@@ -9,7 +9,6 @@ from gavel.models import Item, db
 from gavel import app
 
 HACKPSU_API_URL = os.environ.get('HACKPSU_API_URL', 'https://apiv3.hackpsu.org/judging/projects')
-CURRENT_HACKATHON = os.environ.get('CURRENT_HACKATHON', 'https://apiv3.hackpsu.org/hackathons/active')
 CATEGORY_FILTER = os.environ.get('CATEGORY_FILTER')  # Optional category filter
 
 def extract_table_number(name):
@@ -43,26 +42,6 @@ def matches_category_filter(categories_str, filter_category):
     # Check if the filter category matches any of the project's categories
     return filter_category in categories
 
-def get_current_hackathon_id():
-    """
-    Fetch the current active hackathon from the HackPSU API.
-    Returns the hackathon ID, or None if unable to fetch.
-    """
-    try:
-        response = requests.get(CURRENT_HACKATHON, timeout=10)
-        if response.status_code != 200:
-            print(f"[SYNC WARNING] Failed to fetch current hackathon (status {response.status_code})")
-            return None
-        
-        hackathon = response.json()
-        hackathon_id = hackathon.get('id')
-        hackathon_name = hackathon.get('name', 'Unknown')
-        print(f"[SYNC] Current hackathon: {hackathon_name} (ID: {hackathon_id})")
-        return hackathon_id
-    except Exception as e:
-        print(f"[SYNC WARNING] Failed to fetch current hackathon: {e}")
-        return None
-
 def sync_projects_from_api():
     """Fetch projects from HackPSU API and sync to Gavel"""
     print("[SYNC] Starting project sync from HackPSU API...")
@@ -71,12 +50,6 @@ def sync_projects_from_api():
         print(f"[SYNC] Filtering projects by category: {CATEGORY_FILTER}")
 
     try:
-        # Fetch current hackathon ID
-        current_hackathon_id = get_current_hackathon_id()
-        if not current_hackathon_id:
-            print("[SYNC ERROR] Could not determine current hackathon. Aborting sync.")
-            return
-
         # Fetch projects from API
         response = requests.get(HACKPSU_API_URL, timeout=10)
 
@@ -91,17 +64,8 @@ def sync_projects_from_api():
             synced_count = 0
             updated_count = 0
             filtered_count = 0
-            
-            # Track which projects are in the current hackathon
-            current_hackathon_project_names = set()
 
             for project_data in projects:
-                # Filter by current hackathon
-                project_hackathon_id = project_data.get('hackathon_id')
-                if project_hackathon_id != current_hackathon_id:
-                    filtered_count += 1
-                    continue
-
                 # Apply category filter if specified
                 if CATEGORY_FILTER:
                     categories = project_data.get('categories', '')
@@ -109,12 +73,12 @@ def sync_projects_from_api():
                         filtered_count += 1
                         continue
 
+
                 project_id = project_data.get('id')
                 raw_name = project_data.get('name', f'Project {project_id}')
 
                 # Extract table number from name like "(1) Space Goggles"
                 table_num, clean_name = extract_table_number(raw_name)
-                current_hackathon_project_names.add(clean_name)
 
                 # Use extracted table number, or fallback to project ID
                 if table_num:
@@ -140,31 +104,17 @@ def sync_projects_from_api():
                     synced_count += 1
                     print(f"[SYNC] Created: {clean_name} at {location}")
                 else:
-                    # Reactivate project if it was previously deactivated
-                    if not existing.active:
-                        existing.active = True
-                        updated_count += 1
-                        print(f"[SYNC] Reactivated: {clean_name}")
                     # Update existing project location if changed
-                    elif existing.location != location:
+                    if existing.location != location:
                         existing.location = location
                         updated_count += 1
                         print(f"[SYNC] Updated location for: {clean_name} to {location}")
 
-            # Deactivate projects not in current hackathon (from old hackathons)
-            all_active_projects = Item.query.filter(Item.active == True).all()
-            deactivated_count = 0
-            for project in all_active_projects:
-                if project.name not in current_hackathon_project_names:
-                    project.active = False
-                    deactivated_count += 1
-                    print(f"[SYNC] Deactivated: {project.name} (from previous hackathon)")
-
             db.session.commit()
             if CATEGORY_FILTER:
-                print(f"[SYNC] Complete: {synced_count} created, {updated_count} updated, {filtered_count} filtered out, {deactivated_count} deactivated")
+                print(f"[SYNC] Complete: {synced_count} created, {updated_count} updated, {filtered_count} filtered out")
             else:
-                print(f"[SYNC] Complete: {synced_count} created, {updated_count} updated, {deactivated_count} deactivated")
+                print(f"[SYNC] Complete: {synced_count} created, {updated_count} updated")
 
     except Exception as e:
         print(f"[SYNC ERROR] Failed to sync projects: {e}")
