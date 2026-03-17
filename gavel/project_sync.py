@@ -126,6 +126,10 @@ def setup_project_sync():
     from apscheduler.schedulers.background import BackgroundScheduler
     import atexit
 
+    # Ensure database tables exist before syncing
+    with app.app_context():
+        db.create_all()
+
     # Get sync interval from env (default 5 minutes)
     sync_interval = int(os.environ.get('PROJECT_SYNC_INTERVAL', 300))
 

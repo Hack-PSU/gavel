@@ -62,7 +62,7 @@ user=root\n\
 \n\
 [program:postgresql]\n\
 user=postgres\n\
-command=/usr/lib/postgresql/*/bin/postgres -D /var/lib/postgresql/data\n\
+command=bash -c "exec /usr/lib/postgresql/*/bin/postgres -D /var/lib/postgresql/data"\n\
 autostart=true\n\
 autorestart=true\n\
 stdout_logfile=/dev/stdout\n\

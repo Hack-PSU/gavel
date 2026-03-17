@@ -4,13 +4,17 @@ set -e
 # Initialize PostgreSQL if needed
 if [ ! -f /var/lib/postgresql/data/PG_VERSION ]; then
   echo "Initializing PostgreSQL database..."
-  su - postgres -c "/usr/lib/postgresql/*/bin/initdb -D /var/lib/postgresql/data"
+  PG_BIN_INIT=$(ls -d /usr/lib/postgresql/*/bin | head -1)
+  su - postgres -c "$PG_BIN_INIT/initdb -D /var/lib/postgresql/data"
   echo "PostgreSQL initialized"
 fi
 
+# Resolve PostgreSQL binary path (glob doesn't always expand)
+PG_BIN=$(ls -d /usr/lib/postgresql/*/bin | head -1)
+
 # Start PostgreSQL
 echo "Starting PostgreSQL..."
-su - postgres -c "/usr/lib/postgresql/*/bin/pg_ctl -D /var/lib/postgresql/data -l /tmp/postgresql.log start"
+su - postgres -c "$PG_BIN/pg_ctl -D /var/lib/postgresql/data -l /tmp/postgresql.log start"
 
 # Wait for PostgreSQL to be ready
 echo "Waiting for PostgreSQL to be ready..."
