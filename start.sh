@@ -43,5 +43,9 @@ fi
 echo "Initializing Gavel database..."
 python initialize.py || true
 
+# Stop PostgreSQL so supervisord can manage it
+echo "Stopping PostgreSQL (supervisord will manage it)..."
+su - postgres -c "$PG_BIN/pg_ctl -D /var/lib/postgresql/data stop -m fast"
+
 # Start supervisor
 exec /usr/bin/supervisord -c /etc/supervisor/conf.d/supervisord.conf
