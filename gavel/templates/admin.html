@@ -117,36 +117,13 @@ table {
 
 <div class="item">
   <div class="banner">
-    <h2>All Decisions ({{ all_decisions | length }} total)</h2>
+    <h2>All Decisions ({{ votes }} total)</h2>
   </div>
   <div class="info">
-    <details open>
-      <summary style="cursor: pointer; font-weight: bold; margin-bottom: 10px;">View All Decisions</summary>
-      <div style="overflow-x: auto; margin-top: 10px;">
-        <table id="decisions" style="width: 100%; font-size: 13px;">
-          <thead>
-            <tr>
-              <th data-sort-method="number">ID</th>
-              <th data-sort-method="caseInsensitiveSort">Judge</th>
-              <th data-sort-method="caseInsensitiveSort">Winner</th>
-              <th data-sort-method="caseInsensitiveSort">Loser</th>
-              <th data-sort-method="caseInsensitiveSort" class="sort-default" data-sort-order="desc">Time</th>
-              <th data-sort-method="caseInsensitiveSort">Notes</th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for decision in all_decisions %}
-            <tr>
-              <td>{{ decision.id }}</td>
-              <td><a href="{{ url_for('annotator_detail', annotator_id=decision.annotator.id) }}">{{ decision.annotator.name }}</a></td>
-              <td><a href="{{ url_for('item_detail', item_id=decision.winner.id) }}" style="color: #28a745; font-weight: bold;">{{ decision.winner.name }}</a></td>
-              <td><a href="{{ url_for('item_detail', item_id=decision.loser.id) }}" style="color: #dc3545;">{{ decision.loser.name }}</a></td>
-              <td>{{ decision.time.strftime('%Y-%m-%d %H:%M:%S') }}</td>
-              <td>{% if decision.notes %}{{ decision.notes }}{% endif %}</td>
-            </tr>
-            {% endfor %}
-          </tbody>
-        </table>
+    <details id="decisions-details">
+      <summary style="cursor: pointer; font-weight: bold; margin-bottom: 10px;">Load All Decisions</summary>
+      <div id="decisions-container" style="overflow-x: auto; margin-top: 10px;">
+        <p id="decisions-loading" style="color: #666;">Loading decisions...</p>
       </div>
     </details>
   </div>
@@ -389,6 +366,53 @@ for (var i = 0; i < tables.length; i++) {
     new Tablesort(tables[i]);
   }
 }
+
+// Lazy-load decisions table on expand
+(function() {
+  var details = document.getElementById('decisions-details');
+  var loaded = false;
+  details.addEventListener('toggle', function() {
+    if (!details.open || loaded) return;
+    loaded = true;
+    fetch('/api/decisions.json')
+      .then(function(r) { return r.json(); })
+      .then(function(decisions) {
+        var container = document.getElementById('decisions-container');
+        if (decisions.length === 0) {
+          container.innerHTML = '<p style="color: #666;">No decisions yet.</p>';
+          return;
+        }
+        var html = '<table id="decisions" style="width: 100%; font-size: 13px;">' +
+          '<thead><tr>' +
+          '<th data-sort-method="number">ID</th>' +
+          '<th data-sort-method="caseInsensitiveSort">Judge</th>' +
+          '<th data-sort-method="caseInsensitiveSort">Winner</th>' +
+          '<th data-sort-method="caseInsensitiveSort">Loser</th>' +
+          '<th data-sort-method="caseInsensitiveSort" class="sort-default" data-sort-order="desc">Time</th>' +
+          '<th data-sort-method="caseInsensitiveSort">Notes</th>' +
+          '</tr></thead><tbody>';
+        for (var i = 0; i < decisions.length; i++) {
+          var d = decisions[i];
+          html += '<tr>' +
+            '<td>' + d.id + '</td>' +
+            '<td><a href="/admin/annotator/' + d.annotator_id + '/">' + d.annotator_name + '</a></td>' +
+            '<td><a href="/admin/item/' + d.winner_id + '/" style="color: #28a745; font-weight: bold;">' + d.winner_name + '</a></td>' +
+            '<td><a href="/admin/item/' + d.loser_id + '/" style="color: #dc3545;">' + d.loser_name + '</a></td>' +
+            '<td>' + d.time + '</td>' +
+            '<td>' + d.notes + '</td>' +
+            '</tr>';
+        }
+        html += '</tbody></table>';
+        container.innerHTML = html;
+        var table = document.getElementById('decisions');
+        if (table) new Tablesort(table);
+      })
+      .catch(function() {
+        document.getElementById('decisions-container').innerHTML =
+          '<p style="color: #dc3545;">Failed to load decisions.</p>';
+      });
+  });
+})();
 
 // D3.js Force-Directed Graph
 (function() {

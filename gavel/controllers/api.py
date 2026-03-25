@@ -1,7 +1,8 @@
 from gavel import app
 from gavel.models import *
 from gavel.firebase_session_auth import hackpsu_admin_required
-from flask import Response
+from flask import Response, jsonify
+from sqlalchemy.orm import joinedload
 
 @app.route('/api/items.csv')
 @app.route('/api/projects.csv')
@@ -32,6 +33,26 @@ def annotator_dump():
         a.secret
     ] for a in annotators]
     return Response(utils.data_to_csv_string(data), mimetype='text/csv')
+
+@app.route('/api/decisions.json')
+@hackpsu_admin_required
+def decisions_json():
+    decisions = Decision.query.options(
+        joinedload(Decision.annotator),
+        joinedload(Decision.winner),
+        joinedload(Decision.loser),
+    ).order_by(Decision.time.desc()).all()
+    return jsonify([{
+        'id': d.id,
+        'annotator_id': d.annotator.id,
+        'annotator_name': d.annotator.name,
+        'winner_id': d.winner.id,
+        'winner_name': d.winner.name,
+        'loser_id': d.loser.id,
+        'loser_name': d.loser.name,
+        'time': d.time.strftime('%Y-%m-%d %H:%M:%S'),
+        'notes': d.notes or '',
+    } for d in decisions])
 
 @app.route('/api/decisions.csv')
 @hackpsu_admin_required
