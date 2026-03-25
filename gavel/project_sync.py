@@ -5,7 +5,7 @@ Runs periodically to keep Gavel projects in sync with production
 
 import requests
 import os
-from gavel.models import Item, db
+from gavel.models import Item, db, with_retries
 from gavel import app
 
 HACKPSU_API_URL = os.environ.get('HACKPSU_API_URL', 'https://apiv3.hackpsu.org/judging/projects')
@@ -65,52 +65,56 @@ def sync_projects_from_api():
             updated_count = 0
             filtered_count = 0
 
+            # Pre-filter projects outside the transaction
+            projects_to_sync = []
             for project_data in projects:
-                # Apply category filter if specified
                 if CATEGORY_FILTER:
                     categories = project_data.get('categories', '')
                     if not matches_category_filter(categories, CATEGORY_FILTER):
                         filtered_count += 1
                         continue
+                projects_to_sync.append(project_data)
 
+            def tx():
+                nonlocal synced_count, updated_count
+                synced_count = 0
+                updated_count = 0
 
-                project_id = project_data.get('id')
-                raw_name = project_data.get('name', f'Project {project_id}')
+                for project_data in projects_to_sync:
+                    project_id = project_data.get('id')
+                    raw_name = project_data.get('name', f'Project {project_id}')
 
-                # Extract table number from name like "(1) Space Goggles"
-                table_num, clean_name = extract_table_number(raw_name)
+                    table_num, clean_name = extract_table_number(raw_name)
 
-                # Use extracted table number, or fallback to project ID
-                if table_num:
-                    location = f"Table {table_num}"
-                else:
-                    location = f"Table {project_id}"
+                    if table_num:
+                        location = f"Table {table_num}"
+                    else:
+                        location = f"Table {project_id}"
 
-                # Description is just the clean name
-                description = clean_name
+                    description = clean_name
 
-                # Check if project already exists by clean name
-                existing = Item.query.filter_by(name=clean_name).first()
+                    existing = Item.query.filter_by(name=clean_name).first()
 
-                if not existing:
-                    # Create new project
-                    item = Item(
-                        name=clean_name,
-                        location=location,
-                        description=description
-                    )
-                    item.active = True
-                    db.session.add(item)
-                    synced_count += 1
-                    print(f"[SYNC] Created: {clean_name} at {location}")
-                else:
-                    # Update existing project location if changed
-                    if existing.location != location:
-                        existing.location = location
-                        updated_count += 1
-                        print(f"[SYNC] Updated location for: {clean_name} to {location}")
+                    if not existing:
+                        item = Item(
+                            name=clean_name,
+                            location=location,
+                            description=description
+                        )
+                        item.active = True
+                        db.session.add(item)
+                        synced_count += 1
+                        print(f"[SYNC] Created: {clean_name} at {location}")
+                    else:
+                        if existing.location != location:
+                            existing.location = location
+                            updated_count += 1
+                            print(f"[SYNC] Updated location for: {clean_name} to {location}")
 
-            db.session.commit()
+                db.session.commit()
+
+            with_retries(tx)
+
             if CATEGORY_FILTER:
                 print(f"[SYNC] Complete: {synced_count} created, {updated_count} updated, {filtered_count} filtered out")
             else:
