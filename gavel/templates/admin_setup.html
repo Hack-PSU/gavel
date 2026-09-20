@@ -1,0 +1,55 @@
+{% extends "layout.html" %}
+{% block title %}Setup{% endblock %}
+{% block content %}
+<div class="item">
+  <div class="banner">
+    <h1>No Active Hackathon</h1>
+  </div>
+  <div class="info">
+    <p>
+      Every project, judge, vote and note in Gavel belongs to a hackathon, so
+      nothing can be judged until one is active. Activating a new hackathon
+      starts a clean event: judges get fresh scores and no memory of what they
+      have already seen, and the previous event's data stays intact but out of
+      the way.
+    </p>
+
+    <form action="{{ url_for('hackathon') }}" method="post">
+      <input type="submit" name="action" value="Sync" class="button-full positive">
+      <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+    </form>
+    <p>Adopts whichever hackathon the HackPSU API reports as active.</p>
+
+  </div>
+</div>
+
+{% if hackathons %}
+<div class="item">
+  <div class="banner">
+    <h2>Known Hackathons</h2>
+  </div>
+  <div class="info">
+    <table class="header-row">
+      <thead>
+        <tr><th>Event</th><th>ID</th><th>Activate</th></tr>
+      </thead>
+      <tbody>
+        {% for h in hackathons %}
+        <tr class="{{ '' if h.active else 'disabled' }}">
+          <td>{{ h.name }}</td>
+          <td>{{ h.id }}</td>
+          <td class="compact">
+            <form action="{{ url_for('hackathon') }}" method="post">
+              <input type="submit" name="action" value="Activate" class="positive">
+              <input type="hidden" name="hackathon_id" value="{{ h.id }}">
+              <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+{% endblock %}

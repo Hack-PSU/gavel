@@ -69,6 +69,43 @@ table {
 
 <div class="item">
   <div class="banner">
+    <h2>Hackathon</h2>
+  </div>
+  <div class="info">
+    <p>Everything on this page belongs to the active event. Activating a
+    different hackathon gives judges a clean slate without clearing the
+    database.</p>
+    <table class="header-row">
+      <thead>
+        <tr>
+          <th>Event</th>
+          <th>ID</th>
+          <th>Projects</th>
+          <th>Judges</th>
+          <th>Refresh</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>{{ hackathon.name }}</td>
+          <td>{{ hackathon.id }}</td>
+          <td>{{ items | length }}</td>
+          <td>{{ annotators | length }}</td>
+          <td class="compact">
+            <form action="{{ url_for('hackathon') }}" method="post">
+              <input type="submit" name="action" value="Sync" class="neutral"
+                     title="Adopt whichever hackathon the HackPSU API reports as active">
+              <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+            </form>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<div class="item">
+  <div class="banner">
     <h2>Statistical Summary</h2>
   </div>
   <div class="info">
@@ -161,7 +198,7 @@ table {
           <td>{{ item.mu | round(4) }}</td>
           <td>{{ item.sigma_sq | round(4) }}</td>
           <td>{{ item_counts.get(item.id, 0) }}</td>
-          <td>{{ item.viewed | length }}</td>
+          <td>{{ view_counts.get(item.id, 0) }}</td>
           <td>{{ skipped.get(item.id, 0) }}</td>
           <td class="compact" data-sort="{{ item.prioritized }}">
             <form action="{{ url_for('item') }}" method="post">
@@ -382,6 +419,22 @@ for (var i = 0; i < tables.length; i++) {
           container.innerHTML = '<p style="color: #666;">No decisions yet.</p>';
           return;
         }
+        // Judge names, project names and especially notes are user-supplied.
+        // They used to be concatenated straight into innerHTML, so a note
+        // containing markup ran as script in the admin's browser.
+        function esc(value) {
+          return String(value == null ? '' : value)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+        }
+        function num(value) {
+          // Ids only ever land inside a URL; force them to be numeric.
+          var n = parseInt(value, 10);
+          return isNaN(n) ? '' : String(n);
+        }
         var html = '<table id="decisions" style="width: 100%; font-size: 13px;">' +
           '<thead><tr>' +
           '<th data-sort-method="number">ID</th>' +
@@ -389,17 +442,19 @@ for (var i = 0; i < tables.length; i++) {
           '<th data-sort-method="caseInsensitiveSort">Winner</th>' +
           '<th data-sort-method="caseInsensitiveSort">Loser</th>' +
           '<th data-sort-method="caseInsensitiveSort" class="sort-default" data-sort-order="desc">Time</th>' +
+          '<th data-sort-method="caseInsensitiveSort">Note About</th>' +
           '<th data-sort-method="caseInsensitiveSort">Notes</th>' +
           '</tr></thead><tbody>';
         for (var i = 0; i < decisions.length; i++) {
           var d = decisions[i];
           html += '<tr>' +
-            '<td>' + d.id + '</td>' +
-            '<td><a href="/admin/annotator/' + d.annotator_id + '/">' + d.annotator_name + '</a></td>' +
-            '<td><a href="/admin/item/' + d.winner_id + '/" style="color: #28a745; font-weight: bold;">' + d.winner_name + '</a></td>' +
-            '<td><a href="/admin/item/' + d.loser_id + '/" style="color: #dc3545;">' + d.loser_name + '</a></td>' +
-            '<td>' + d.time + '</td>' +
-            '<td>' + d.notes + '</td>' +
+            '<td>' + num(d.id) + '</td>' +
+            '<td><a href="/admin/annotator/' + num(d.annotator_id) + '/">' + esc(d.annotator_name) + '</a></td>' +
+            '<td><a href="/admin/item/' + num(d.winner_id) + '/" style="color: #28a745; font-weight: bold;">' + esc(d.winner_name) + '</a></td>' +
+            '<td><a href="/admin/item/' + num(d.loser_id) + '/" style="color: #dc3545;">' + esc(d.loser_name) + '</a></td>' +
+            '<td>' + esc(d.time) + '</td>' +
+            '<td>' + esc(d.notes_project) + '</td>' +
+            '<td style="white-space: pre-wrap;">' + esc(d.notes) + '</td>' +
             '</tr>';
         }
         html += '</tbody></table>';

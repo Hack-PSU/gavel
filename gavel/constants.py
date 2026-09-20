@@ -3,6 +3,22 @@ TELEMETRY_URL = 'https://telemetry.anish.io/api/v1/submit'
 TELEMETRY_DELTA = 20 * 60 # seconds
 SENDGRID_URL = "https://api.sendgrid.com/v3/mail/send"
 
+# Judge-supplied free text is stored in unbounded TEXT columns, so there is no
+# length limit to enforce anywhere -- see migration 0001. The original bug was a
+# bounded VARCHAR, and the fix is an unbounded column, not a smaller cap.
+
+# Skip reasons offered in the UI. Validated server-side so the stored value is
+# always one of these; SKIP_REASONS_REQUIRING_NOTE additionally require the
+# judge to say what they mean.
+SKIP_REASONS = {
+    'cannot_find': 'Cannot find project',
+    'conflict_of_interest': 'Conflict of interest',
+    'insufficient_info': 'Insufficient information',
+    'technical_issues': 'Technical issues',
+    'other': 'Other',
+}
+SKIP_REASONS_REQUIRING_NOTE = {'other'}
+
 # Setting
 # keys
 SETTING_CLOSED = 'closed' # boolean

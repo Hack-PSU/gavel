@@ -6,7 +6,7 @@ import gavel.utils as utils
 import gavel.stats as stats
 import gavel.analytics as analytics
 from gavel.firebase_session_auth import hackpsu_admin_required
-from gavel.project_sync import sync_projects_from_api
+from gavel.project_sync import sync_projects_from_api, sync_active_hackathon
 from flask import (
     redirect,
     render_template,
@@ -23,50 +23,109 @@ ALLOWED_EXTENSIONS = set(['csv', 'xlsx', 'xls'])
 @hackpsu_admin_required
 def admin():
     stats.check_send_telemetry()
-    annotators = Annotator.query.order_by(Annotator.id).all()
-    items = Item.query.order_by(Item.id).all()
-    decisions = Decision.query.all()
+
+    # Degrade rather than 503: this page is where an admin starts a hackathon,
+    # so it has to render when there isn't one.
+    if current_hackathon_id(required=False) is None:
+        return render_template(
+            'admin_setup.html',
+            hackathons=Hackathon.query.order_by(Hackathon.name).all(),
+        )
+
+    hackathon_id = current_hackathon_id()
+    annotators = Annotator.query_current().order_by(Annotator.id).all()
+    items = Item.query_current().order_by(Item.id).all()
+
+    # Load every comparison once, as four columns rather than full ORM
+    # objects, and hand it to each analytic below. Each of them used to run its
+    # own Decision.query.all(), so one page load scanned the decision table
+    # five times and built five sets of objects it immediately discarded.
+    comparisons = analytics.load_comparisons(hackathon_id)
+
     counts = {}
     item_counts = {}
-    for d in decisions:
-        a = d.annotator_id
-        w = d.winner_id
-        l = d.loser_id
-        counts[a] = counts.get(a, 0) + 1
-        item_counts[w] = item_counts.get(w, 0) + 1
-        item_counts[l] = item_counts.get(l, 0) + 1
-    viewed = {i.id: {a.id for a in i.viewed} for i in items}
-    skipped = {}
-    for a in annotators:
-        for i in a.ignore:
-            if a.id not in viewed[i.id]:
-                skipped[i.id] = skipped.get(i.id, 0) + 1
+    for winner_id, loser_id, annotator_id, _time in comparisons:
+        counts[annotator_id] = counts.get(annotator_id, 0) + 1
+        item_counts[winner_id] = item_counts.get(winner_id, 0) + 1
+        item_counts[loser_id] = item_counts.get(loser_id, 0) + 1
+
+    view_counts = view_counts_by_item(hackathon_id)
+    skipped = skip_counts_by_item(hackathon_id)
+
     # settings
     setting_closed = Setting.value_of(SETTING_CLOSED) == SETTING_TRUE
 
     # Graph visualization data
-    G = analytics.build_comparison_graph()
+    G = analytics.build_comparison_graph(items, comparisons)
     graph_data = analytics.generate_graph_data_for_visualization(G)
 
     # New analytics data
-    coverage_matrix = analytics.get_coverage_matrix()
-    voting_timeline = analytics.get_voting_timeline(hours=2)
-    statistical_summary = analytics.get_statistical_summary()
+    coverage_matrix = analytics.get_coverage_matrix(items, comparisons)
+    voting_timeline = analytics.get_voting_timeline(hours=2, comparisons=comparisons)
+    statistical_summary = analytics.get_statistical_summary(
+        items, annotators, comparisons)
 
     return render_template(
         'admin.html',
+        # by_id, not current(): resolving the id above already loaded this row
+        # into the session, so this is an identity-map hit rather than a query.
+        hackathon=Hackathon.by_id(hackathon_id),
         annotators=annotators,
         counts=counts,
         item_counts=item_counts,
+        view_counts=view_counts,
         skipped=skipped,
         items=items,
-        votes=len(decisions),
+        votes=len(comparisons),
         setting_closed=setting_closed,
         graph_data=graph_data,
         coverage_matrix=coverage_matrix,
         voting_timeline=voting_timeline,
         statistical_summary=statistical_summary,
     )
+
+
+def view_counts_by_item(hackathon_id):
+    """
+    How many judges have seen each project, as one GROUP BY.
+
+    The template renders `item.viewed | length` per row, and the skip
+    calculation walked `item.viewed` for every project -- each a lazy load, so
+    300 projects meant 300 round trips before the page could render.
+    """
+    rows = db.session.query(
+        view_table.c.item_id, db.func.count()
+    ).join(
+        Item, Item.id == view_table.c.item_id
+    ).filter(
+        Item.hackathon_id == hackathon_id
+    ).group_by(view_table.c.item_id).all()
+    return dict(rows)
+
+
+def skip_counts_by_item(hackathon_id):
+    """
+    How many judges skipped each project: ignored it without ever viewing it.
+
+    This was a nested Python loop over every judge's `ignore` collection --
+    another lazy load per judge -- cross-referenced against a dict of every
+    project's viewers. The same question is one anti-join.
+    """
+    view_alias = view_table.alias('v')
+    rows = db.session.query(
+        ignore_table.c.item_id, db.func.count()
+    ).join(
+        Item, Item.id == ignore_table.c.item_id
+    ).outerjoin(
+        view_alias,
+        (view_alias.c.item_id == ignore_table.c.item_id) &
+        (view_alias.c.annotator_id == ignore_table.c.annotator_id)
+    ).filter(
+        (Item.hackathon_id == hackathon_id) &
+        (view_alias.c.item_id.is_(None))
+    ).group_by(ignore_table.c.item_id).all()
+    return dict(rows)
+
 
 @app.route('/admin/item', methods=['POST'])
 @hackpsu_admin_required
@@ -104,11 +163,11 @@ def item():
         try:
             def tx():
                 db.session.execute(ignore_table.delete(ignore_table.c.item_id == item_id))
-                Item.query.filter_by(id=item_id).delete()
+                Item.query_current().filter_by(id=item_id).delete()
                 db.session.commit()
             with_retries(tx)
         except IntegrityError as e:
-            if isinstance(e.orig, psycopg2.errors.ForeignKeyViolation):
+            if is_foreign_key_violation(e):
                 return utils.server_error("Projects can't be deleted once they have been voted on by a judge. You can use the 'disable' functionality instead, which has a similar effect, preventing the project from being shown to judges.")
             else:
                 return utils.server_error(str(e))
@@ -140,19 +199,28 @@ def parse_upload_form():
 @app.route('/admin/item_patch', methods=['POST'])
 @hackpsu_admin_required
 def item_patch():
+    item_id = request.form['item_id']
+    # Checked out here rather than inside tx(): a `return` from the retried
+    # transaction function is discarded, so the not-found response never
+    # reached the admin.
+    if not Item.by_id(item_id):
+        return utils.user_error('Item %s not found ' % item_id)
+
     def tx():
-        item = Item.by_id(request.form['item_id'])
-        if not item:
-            return utils.user_error('Item %s not found ' % request.form['item_id'])
+        _item = Item.by_id(item_id)
+        if _item is None:
+            return
         if 'location' in request.form:
-            item.location = request.form['location']
+            _item.location = request.form['location']
         if 'name' in request.form:
-            item.name = request.form['name']
+            _item.name = request.form['name']
         if 'description' in request.form:
-            item.description = request.form['description']
+            _item.description = request.form['description']
         db.session.commit()
     with_retries(tx)
-    return redirect(url_for('item_detail', item_id=item.id))
+    # `item` at module scope is the /admin/item route function, not a row --
+    # `item.id` raised AttributeError and 500'd every project edit.
+    return redirect(url_for('item_detail', item_id=item_id))
 
 @app.route('/admin/annotator', methods=['POST'])
 @hackpsu_admin_required
@@ -195,11 +263,11 @@ def annotator():
         try:
             def tx():
                 db.session.execute(ignore_table.delete(ignore_table.c.annotator_id == annotator_id))
-                Annotator.query.filter_by(id=annotator_id).delete()
+                Annotator.query_current().filter_by(id=annotator_id).delete()
                 db.session.commit()
             with_retries(tx)
         except IntegrityError as e:
-            if isinstance(e.orig, psycopg2.errors.ForeignKeyViolation):
+            if is_foreign_key_violation(e):
                 return utils.server_error("Judges can't be deleted once they have voted on a project. You can use the 'disable' functionality instead, which has a similar effect, locking out the judge and preventing them from voting on any other projects.")
             else:
                 return utils.server_error(str(e))
@@ -214,6 +282,38 @@ def setting():
         new_value = SETTING_TRUE if action == 'Close' else SETTING_FALSE
         Setting.set(SETTING_CLOSED, new_value)
         db.session.commit()
+    return redirect(url_for('admin'))
+
+@app.route('/admin/hackathon', methods=['POST'])
+@hackpsu_admin_required
+def hackathon():
+    """
+    Set the active hackathon: the tenant that owns all judging data.
+
+    'Sync' adopts whichever hackathon the HackPSU API reports as active.
+    'Activate' switches to one Gavel already knows about, which is how you
+    reopen a past event without touching the API.
+    """
+    action = request.form['action']
+    if action == 'Sync':
+        try:
+            hackathon_id = sync_active_hackathon()
+        except Exception as e:
+            return utils.server_error('Failed to sync hackathon: %s' % e)
+        if not hackathon_id:
+            return utils.server_error(
+                'The HackPSU API did not report an active hackathon. Check '
+                'HACKPSU_API_KEY and HACKPSU_API_URL.')
+    elif action == 'Activate':
+        target = request.form['hackathon_id']
+        existing = Hackathon.by_id(target)
+        if not existing:
+            return utils.user_error('Hackathon %s not found' % target)
+        def tx():
+            Hackathon.activate(existing.id, existing.name)
+            db.session.commit()
+        with_retries(tx)
+        forget_current_hackathon()
     return redirect(url_for('admin'))
 
 @app.route('/admin/sync-projects', methods=['POST'])
@@ -233,25 +333,27 @@ def item_detail(item_id):
     if not item:
         return utils.user_error('Item %s not found ' % item_id)
     else:
-        assigned = Annotator.query.filter(Annotator.next == item).all()
+        assigned = Annotator.query_current().filter(Annotator.next == item).all()
         viewed_ids = {i.id for i in item.viewed}
         if viewed_ids:
-            skipped = Annotator.query.filter(
+            skipped = Annotator.query_current().filter(
                 Annotator.ignore.contains(item) & ~Annotator.id.in_(viewed_ids)
             )
         else:
-            skipped = Annotator.query.filter(Annotator.ignore.contains(item))
+            skipped = Annotator.query_current().filter(Annotator.ignore.contains(item))
 
-        # Get skip reasons for this item
+        # Get skip reasons (and the judge's explanation, where there is one)
         skip_records = Skip.query.filter_by(item_id=item_id).all()
         skip_reasons = {s.annotator_id: s.reason for s in skip_records}
+        skip_notes = {s.annotator_id: s.note for s in skip_records if s.note}
 
         return render_template(
             'admin_item.html',
             item=item,
             assigned=assigned,
             skipped=skipped,
-            skip_reasons=skip_reasons
+            skip_reasons=skip_reasons,
+            skip_notes=skip_notes
         )
 
 @app.route('/admin/annotator/<annotator_id>/')
@@ -261,18 +363,19 @@ def annotator_detail(annotator_id):
     if not annotator:
         return utils.user_error('Annotator %s not found ' % annotator_id)
     else:
-        seen = Item.query.filter(Item.viewed.contains(annotator)).all()
+        seen = Item.query_current().filter(Item.viewed.contains(annotator)).all()
         ignored_ids = {i.id for i in annotator.ignore}
         if ignored_ids:
-            skipped = Item.query.filter(
+            skipped = Item.query_current().filter(
                 Item.id.in_(ignored_ids) & ~Item.viewed.contains(annotator)
             )
         else:
             skipped = []
 
-        # Get skip reasons for this annotator
+        # Get skip reasons (and the judge's explanation, where there is one)
         skip_records = Skip.query.filter_by(annotator_id=annotator_id).all()
         skip_reasons = {s.item_id: s.reason for s in skip_records}
+        skip_notes = {s.item_id: s.note for s in skip_records if s.note}
 
         return render_template(
             'admin_annotator.html',
@@ -280,7 +383,8 @@ def annotator_detail(annotator_id):
             login_link=annotator_link(annotator),
             seen=seen,
             skipped=skipped,
-            skip_reasons=skip_reasons
+            skip_reasons=skip_reasons,
+            skip_notes=skip_notes
         )
 
 def annotator_link(annotator):
@@ -291,6 +395,12 @@ def annotator_link(annotator):
 def email_invite_links(annotators):
     if settings.DISABLE_EMAIL or annotators is None:
         return
+    if not settings.EMAIL_FROM:
+        # Deprecated path, left in place but no longer configured by default.
+        # Say so rather than failing deep inside the mail transport.
+        raise RuntimeError(
+            'Email is not configured (EMAIL_FROM unset). Judge invites are '
+            'deprecated; judges sign in through HackPSU auth instead.')
     if not isinstance(annotators, list):
         annotators = [annotators]
 

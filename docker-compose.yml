@@ -90,6 +90,12 @@ services:
       ENABLE_PROJECT_SYNC: "true"
       HACKPSU_API_URL: "https://apiv3.staging.hackpsu.org/judging/projects"
       PROJECT_SYNC_INTERVAL: 300  # seconds (5 minutes)
+      # Optional: the active hackathon is read from the public
+      # /hackathons/active/static endpoint.
+      HACKPSU_API_KEY: "${HACKPSU_API_KEY:-}"
+      # Pin the tenant locally instead of calling the API.
+      HACKATHON_ID: "${HACKATHON_ID:-local-dev}"
+      AUTH_CACHE_TTL: 60
 
       # Ignore config file, use env vars
       IGNORE_CONFIG_FILE: "true"

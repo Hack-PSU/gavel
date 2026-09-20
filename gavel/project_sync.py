@@ -5,11 +5,89 @@ Runs periodically to keep Gavel projects in sync with production
 
 import requests
 import os
-from gavel.models import Item, db, with_retries
+from urllib.parse import urljoin
+from gavel.models import Hackathon, Item, db, with_retries
 from gavel import app
 
 HACKPSU_API_URL = os.environ.get('HACKPSU_API_URL', 'https://apiv3.hackpsu.org/judging/projects')
 CATEGORY_FILTER = os.environ.get('CATEGORY_FILTER')  # Optional category filter
+
+# Which endpoint tells us the active hackathon.
+#
+# /hackathons/active is declared @Roles(Role.NONE), which still requires a
+# valid credential. /hackathons/active/static carries no @Roles decorator at
+# all, so it is public -- the same reason /judging/projects works today without
+# one. It returns the same id/name/active fields (plus an events and sponsors
+# graph we ignore), so Gavel reads it and needs no credential of its own.
+#
+# HACKPSU_API_KEY stays optional: when set it is sent on every call, which lets
+# this keep working if /active/static ever gains a @Roles decorator.
+HACKPSU_API_KEY = os.environ.get('HACKPSU_API_KEY')
+HACKATHON_ID_OVERRIDE = os.environ.get('HACKATHON_ID')
+
+
+def _api_headers():
+    return {'x-api-key': HACKPSU_API_KEY} if HACKPSU_API_KEY else {}
+
+
+def _active_hackathon_url():
+    """Derive the active-hackathon endpoint from the configured projects URL."""
+    explicit = os.environ.get('HACKPSU_HACKATHON_URL')
+    if explicit:
+        return explicit
+    base = HACKPSU_API_URL.split('/judging/')[0]
+    return urljoin(base + '/', 'hackathons/active/static')
+
+
+def sync_active_hackathon():
+    """
+    Point Gavel at whichever hackathon the HackPSU API says is running.
+
+    This is the switch that makes everything else reset: projects, judges,
+    decisions and the "judging is closed" flag are all scoped to the active
+    hackathon, so activating a new one gives a clean event without anyone
+    clearing the database.
+    """
+    if HACKATHON_ID_OVERRIDE:
+        # Escape hatch for local development and for running a past event.
+        with app.app_context():
+            def tx():
+                Hackathon.activate(HACKATHON_ID_OVERRIDE,
+                                   'Hackathon %s' % HACKATHON_ID_OVERRIDE)
+                db.session.commit()
+            with_retries(tx)
+            print('[SYNC] Active hackathon pinned to %s by HACKATHON_ID'
+                  % HACKATHON_ID_OVERRIDE)
+        return HACKATHON_ID_OVERRIDE
+
+    url = _active_hackathon_url()
+    try:
+        response = requests.get(url, headers=_api_headers(), timeout=10)
+    except requests.RequestException as e:
+        print('[SYNC ERROR] Could not reach %s: %s' % (url, e))
+        return None
+
+    if response.status_code != 200:
+        print('[SYNC ERROR] %s returned status %s%s' % (
+            url, response.status_code,
+            ' (endpoint now needs a credential -- set HACKPSU_API_KEY)'
+            if response.status_code in (401, 403) else ''))
+        return None
+
+    data = response.json() or {}
+    hackathon_id = data.get('id')
+    if not hackathon_id:
+        print('[SYNC ERROR] No active hackathon in the API response')
+        return None
+
+    with app.app_context():
+        def tx():
+            Hackathon.activate(hackathon_id, data.get('name') or hackathon_id)
+            db.session.commit()
+        with_retries(tx)
+        print('[SYNC] Active hackathon: %s (%s)'
+              % (data.get('name') or hackathon_id, hackathon_id))
+    return hackathon_id
 
 def extract_table_number(name):
     """Extract table number from project name like '(1) Space Goggles'"""
@@ -49,9 +127,15 @@ def sync_projects_from_api():
     if CATEGORY_FILTER:
         print(f"[SYNC] Filtering projects by category: {CATEGORY_FILTER}")
 
+    hackathon_id = sync_active_hackathon()
+    if not hackathon_id:
+        print('[SYNC] No active hackathon; skipping project sync')
+        return
+
     try:
         # Fetch projects from API
-        response = requests.get(HACKPSU_API_URL, timeout=10)
+        response = requests.get(HACKPSU_API_URL, headers=_api_headers(),
+                                timeout=10)
 
         if response.status_code != 200:
             print(f"[SYNC ERROR] API returned status {response.status_code}")
@@ -89,17 +173,26 @@ def sync_projects_from_api():
                     if table_num:
                         location = f"Table {table_num}"
                     else:
-                        location = f"Table {project_id}"
+                        # Falling back to the database id printed a row id as
+                        # if it were a physical table number, sending judges to
+                        # a table that doesn't exist. Say it's unassigned so an
+                        # admin can see and fix it.
+                        location = "Table not assigned"
+                        print(f"[SYNC] No table number in name: {raw_name!r}")
 
                     description = clean_name
 
-                    existing = Item.query.filter_by(name=clean_name).first()
+                    # Scoped to this hackathon: a project with the same name
+                    # at a previous event is a different project.
+                    existing = Item.query.filter_by(
+                        name=clean_name, hackathon_id=hackathon_id).first()
 
                     if not existing:
                         item = Item(
                             name=clean_name,
                             location=location,
-                            description=description
+                            description=description,
+                            hackathon_id=hackathon_id
                         )
                         item.active = True
                         db.session.add(item)
@@ -125,6 +218,60 @@ def sync_projects_from_api():
         import traceback
         traceback.print_exc()
 
+# Arbitrary but fixed key for the PostgreSQL advisory lock that elects the one
+# process allowed to run the sync scheduler.
+SYNC_LOCK_KEY = 0x6761766C  # b'gavl' -- PostgreSQL advisory locks are numeric
+SYNC_LOCK_NAME = 'gavel_project_sync'  # MySQL's GET_LOCK takes a name
+
+# The connection holding the advisory lock. Must stay open for the lifetime of
+# the process -- PostgreSQL releases a session-level advisory lock when the
+# session ends, which is exactly the behaviour we want if a worker dies.
+_sync_lock_conn = None
+
+
+def _claim_sync_leadership():
+    """
+    Try to become the single process responsible for project sync.
+
+    setup_project_sync() runs at import time, so with `gunicorn -w 16` all
+    sixteen workers previously started their own APScheduler, each firing a
+    full sync every PROJECT_SYNC_INTERVAL seconds and each racing the others to
+    insert the same projects. A session-level advisory lock elects exactly one
+    of them; if that worker dies the lock is released and the next boot elects
+    another.
+    """
+    global _sync_lock_conn
+    try:
+        with app.app_context():
+            dialect = db.engine.dialect.name
+            conn = db.engine.raw_connection()
+            cursor = conn.cursor()
+            if dialect == 'postgresql':
+                cursor.execute('SELECT pg_try_advisory_lock(%s)',
+                               (SYNC_LOCK_KEY,))
+            elif dialect == 'mysql':
+                # GET_LOCK is MySQL's session-level advisory lock and behaves
+                # like the PostgreSQL one: released when the session ends, so a
+                # worker that dies hands leadership back automatically.
+                cursor.execute('SELECT GET_LOCK(%s, 0)', (SYNC_LOCK_NAME,))
+            else:
+                cursor.close()
+                conn.close()
+                return True  # nothing to coordinate against
+            acquired = bool(cursor.fetchone()[0])
+            cursor.close()
+            if acquired:
+                _sync_lock_conn = conn  # keep the session (and the lock) alive
+            else:
+                conn.close()
+            return acquired
+    except Exception as e:
+        # Never let lock plumbing stop the app from booting. Falling back to
+        # "this worker syncs" is the old behaviour, which is safe if noisy.
+        print(f"[SYNC] Could not acquire sync lock ({e}); syncing from this worker")
+        return True
+
+
 def setup_project_sync():
     """Set up periodic project sync using APScheduler"""
     from apscheduler.schedulers.background import BackgroundScheduler
@@ -133,6 +280,10 @@ def setup_project_sync():
     # Ensure database tables exist before syncing
     with app.app_context():
         db.create_all()
+
+    if not _claim_sync_leadership():
+        print("[SYNC] Another worker owns project sync; not scheduling here")
+        return None
 
     # Get sync interval from env (default 5 minutes)
     sync_interval = int(os.environ.get('PROJECT_SYNC_INTERVAL', 300))
@@ -144,7 +295,11 @@ def setup_project_sync():
         seconds=sync_interval,
         id='sync_projects',
         name='Sync projects from HackPSU API',
-        replace_existing=True
+        replace_existing=True,
+        # If a sync overruns the interval, run it once when it catches up
+        # rather than queueing up a backlog of identical syncs.
+        coalesce=True,
+        max_instances=1,
     )
     scheduler.start()
 

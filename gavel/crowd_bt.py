@@ -37,11 +37,35 @@ def divergence_beta(alpha_1, beta_1, alpha_2, beta_2):
             (alpha_2 - alpha_1 + beta_2 - beta_1) * psi(alpha_1 + beta_1)
 
 # returns new (alpha, beta, mu_winner, sigma_sq_winner, mu_loser, sigma_sq_loser)
+def _py(*values):
+    """
+    Convert numpy scalars to plain Python floats.
+
+    numpy.float64 subclasses float, so psycopg2's float adapter accepts it --
+    and that adapter serialises with repr(). NumPy 2.0 changed
+    repr(np.float64(x)) from "-0.126" to "np.float64(-0.126)", which is then
+    embedded verbatim in the statement:
+
+        UPDATE item SET mu=np.float64(-0.126...)
+        InvalidSchemaName: schema "np" does not exist
+
+    requirements.txt pins numpy 1.21, where repr() still yields bare digits, so
+    this is invisible until someone bumps numpy -- at which point every vote
+    fails. And because it is a ProgrammingError rather than a serialization
+    failure, with_retries re-raises it and the judge loses the vote outright.
+    Converting at the boundary makes the result independent of numpy's repr.
+    """
+    return tuple(float(value) for value in values)
+
+
 def update(alpha, beta, mu_winner, sigma_sq_winner, mu_loser, sigma_sq_loser):
     (updated_alpha, updated_beta, _) = _updated_annotator(alpha, beta, mu_winner, sigma_sq_winner, mu_loser, sigma_sq_loser)
     (updated_mu_winner, updated_mu_loser) = _updated_mus(alpha, beta, mu_winner, sigma_sq_winner, mu_loser, sigma_sq_loser)
     (updated_sigma_sq_winner, updated_sigma_sq_loser) = _updated_sigma_sqs(alpha, beta, mu_winner, sigma_sq_winner, mu_loser, sigma_sq_loser)
-    return (updated_alpha, updated_beta, updated_mu_winner, updated_sigma_sq_winner, updated_mu_loser, updated_sigma_sq_loser)
+    # Every one of these is written straight to a Float column, so they leave
+    # here as plain Python floats -- see _py() for why that matters.
+    return _py(updated_alpha, updated_beta, updated_mu_winner,
+               updated_sigma_sq_winner, updated_mu_loser, updated_sigma_sq_loser)
 
 def expected_information_gain(alpha, beta, mu_a, sigma_sq_a, mu_b, sigma_sq_b):
     (alpha_1, beta_1, c) = _updated_annotator(alpha, beta, mu_a, sigma_sq_a, mu_b, sigma_sq_b)

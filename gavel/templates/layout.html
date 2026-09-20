@@ -38,8 +38,11 @@
     <!-- Identify user in PostHog if logged in -->
     {% if user_uid and user_email %}
     <script>
-      posthog.identify('{{ user_uid }}', {
-        email: '{{ user_email }}' || undefined
+      // Rendered via tojson rather than interpolated into a quoted string:
+      // these values come from an unverified session JWT, so a crafted email
+      // or uid would otherwise break out of the literal and run as script.
+      posthog.identify({{ user_uid | tojson }}, {
+        email: {{ user_email | tojson }} || undefined
       });
     </script>
     {% endif %}

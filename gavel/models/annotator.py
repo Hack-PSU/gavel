@@ -1,4 +1,6 @@
 from gavel.models import db
+from gavel.models.tenancy import current_hackathon_id
+from gavel.models.types import hackathon_id_column, DoubleFloat, PreciseDateTime, email_column
 import gavel.utils as utils
 import gavel.crowd_bt as crowd_bt
 from sqlalchemy.orm.exc import NoResultFound
@@ -11,23 +13,30 @@ ignore_table = db.Table('ignore',
 
 class Annotator(db.Model):
     id = db.Column(db.Integer, primary_key=True, nullable=False)
-    name = db.Column(db.String(120), nullable=False)
-    email = db.Column(db.String(120), nullable=False)
+    # One judge row per person per event. This is what makes a judge's
+    # crowd-BT priors, current assignment and seen/skipped history reset when a
+    # new hackathon starts, instead of carrying over from the last one.
+    hackathon_id = db.Column(hackathon_id_column(), db.ForeignKey('hackathon.id'), nullable=False)
+    name = db.Column(db.Text, nullable=False)
+    # Bounded because it is half of the (email, hackathon_id) unique index,
+    # and MySQL cannot index an unbounded column. 254 is the RFC 5321 limit.
+    email = db.Column(email_column(), nullable=False)
     active = db.Column(db.Boolean, default=True, nullable=False)
     read_welcome = db.Column(db.Boolean, default=False, nullable=False)
     description = db.Column(db.Text, nullable=False)
     secret = db.Column(db.String(32), unique=True, nullable=False)
     next_id = db.Column(db.Integer, db.ForeignKey('item.id'))
     next = db.relationship('Item', foreign_keys=[next_id], uselist=False)
-    updated = db.Column(db.DateTime)
+    updated = db.Column(PreciseDateTime)
     prev_id = db.Column(db.Integer, db.ForeignKey('item.id'))
     prev = db.relationship('Item', foreign_keys=[prev_id], uselist=False)
     ignore = db.relationship('Item', secondary=ignore_table)
 
-    alpha = db.Column(db.Float)
-    beta = db.Column(db.Float)
+    alpha = db.Column(DoubleFloat)
+    beta = db.Column(DoubleFloat)
 
-    def __init__(self, name, email, description):
+    def __init__(self, name, email, description, hackathon_id=None):
+        self.hackathon_id = hackathon_id or current_hackathon_id()
         self.name = name
         self.email = email
         self.description = description
@@ -59,4 +68,21 @@ class Annotator(db.Model):
             annotator = cls.query.get(uid)
         except NoResultFound:
             annotator = None
+        # A session issued during a previous event must not resolve to a judge
+        # row from that event once a new hackathon is active.
+        if annotator is not None and annotator.hackathon_id != current_hackathon_id():
+            return None
         return annotator
+
+    @classmethod
+    def by_email(cls, email, hackathon_id=None):
+        '''The judge row for this person at the given (default: active) event.'''
+        return cls.query.filter(
+            (cls.email == email) &
+            (cls.hackathon_id == (hackathon_id or current_hackathon_id()))
+        ).first()
+
+    @classmethod
+    def query_current(cls):
+        '''Judges belonging to the active hackathon.'''
+        return cls.query.filter(cls.hackathon_id == current_hackathon_id())

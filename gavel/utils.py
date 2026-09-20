@@ -21,6 +21,12 @@ def gen_secret(length):
     return base64.b32encode(os.urandom(length))[:length].decode('utf8').lower()
 
 def check_auth(username, password):
+    # Fail closed when no password is configured, rather than comparing
+    # against None. Nothing currently applies requires_auth -- admin access
+    # goes through hackpsu_admin_required -- but if it is ever reinstated it
+    # must not be satisfiable on a deployment that set no password.
+    if not settings.ADMIN_PASSWORD:
+        return False
     return username == 'admin' and password == settings.ADMIN_PASSWORD
 
 def authenticate():

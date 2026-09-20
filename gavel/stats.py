@@ -14,11 +14,12 @@ def check_send_telemetry():
 def _check_send_telemetry():
     if not settings.SEND_STATS:
         return
-    last = Setting.value_of(constants.SETTING_TELEMETRY_LAST_SENT)
+    # Telemetry timing is a property of the deployment, not of one event.
+    last = Setting.value_of(constants.SETTING_TELEMETRY_LAST_SENT, scoped=False)
     if last is not None:
         if time.time() - int(last) < constants.TELEMETRY_DELTA:
             return
-    Setting.set(constants.SETTING_TELEMETRY_LAST_SENT, str(int(time.time())))
+    Setting.set(constants.SETTING_TELEMETRY_LAST_SENT, str(int(time.time())), scoped=False)
     db.session.commit()
     stats = gather_stats()
     send_telemetry('gavel-v1', stats)
@@ -37,9 +38,10 @@ def gather_stats():
             settings.EMAIL_SUBJECT != constants.DEFAULT_EMAIL_SUBJECT or
             settings.EMAIL_BODY != constants.DEFAULT_EMAIL_BODY
         ),
-        'judges': Annotator.query.count(),
-        'items': Item.query.count(),
-        'decisions': Decision.query.count(),
+        'judges': Annotator.query_current().count(),
+        'items': Item.query_current().count(),
+        'decisions': Decision.query.filter(
+            Decision.hackathon_id == current_hackathon_id()).count(),
     }
 
 def send_telemetry(identifier, data):

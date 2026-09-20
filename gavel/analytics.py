@@ -1,7 +1,7 @@
 """
 Advanced analytics for CrowdBT algorithm performance and network analysis.
 """
-from gavel.models import Item, Decision, Annotator
+from gavel.models import Item, Decision, Annotator, db, current_hackathon_id
 import networkx as nx
 from collections import defaultdict
 import numpy as np
@@ -9,28 +9,64 @@ from datetime import datetime, timedelta
 from sqlalchemy import func
 
 
-def build_comparison_graph():
+def load_comparisons(hackathon_id=None):
+    """
+    Every comparison in the active hackathon, as lightweight rows.
+
+    The dashboard needs only the ids and the timestamp, so this selects four
+    columns instead of hydrating full Decision objects -- and it is loaded once
+    and passed to each analytic below. Previously every function on the admin
+    page ran its own `Decision.query.all()`, so a single page load scanned the
+    whole decision table five times over and built five sets of ORM objects
+    that were thrown away immediately.
+
+    Analytics that span events are meaningless -- crowd-BT scores, coverage and
+    convergence are all relative to one set of projects and judges -- so this
+    is always scoped to one hackathon.
+    """
+    return db.session.query(
+        Decision.winner_id,
+        Decision.loser_id,
+        Decision.annotator_id,
+        Decision.time,
+    ).filter(
+        Decision.hackathon_id == (hackathon_id or current_hackathon_id())
+    ).order_by(Decision.time).all()
+
+
+def _active(items):
+    return [i for i in items if i.active]
+
+
+def _resolve(items, comparisons):
+    """Fall back to querying when a caller hasn't loaded the data already."""
+    if items is None:
+        items = Item.query_current().order_by(Item.id).all()
+    if comparisons is None:
+        comparisons = load_comparisons()
+    return items, comparisons
+
+
+def build_comparison_graph(items=None, comparisons=None):
     """
     Build a directed graph where nodes are projects and edges are comparisons.
     Edge weight represents number of times A was preferred over B.
     """
+    items, comparisons = _resolve(items, comparisons)
     G = nx.DiGraph()
 
     # Add all active projects as nodes
-    items = Item.query.filter(Item.active == True).all()
-    for item in items:
+    for item in _active(items):
         G.add_node(item.id, name=item.name, mu=float(item.mu), sigma_sq=float(item.sigma_sq))
 
-    # Add edges from decisions
-    decisions = Decision.query.all()
+    # Add edges from comparisons. Reading winner_id/loser_id off the row rather
+    # than dec.winner.id avoids a lazy load per decision for any project not
+    # already in the session's identity map.
     edge_weights = defaultdict(int)
-
-    for dec in decisions:
+    for winner_id, loser_id, _annotator_id, _time in comparisons:
         # Only add edges if both winner and loser are in the graph (i.e., both are active)
-        if dec.winner.id in G.nodes and dec.loser.id in G.nodes:
-            # Directed edge from winner to loser
-            edge = (dec.winner.id, dec.loser.id)
-            edge_weights[edge] += 1
+        if winner_id in G.nodes and loser_id in G.nodes:
+            edge_weights[(winner_id, loser_id)] += 1
 
     for (winner_id, loser_id), weight in edge_weights.items():
         G.add_edge(winner_id, loser_id, weight=weight)
@@ -38,15 +74,17 @@ def build_comparison_graph():
     return G
 
 
-def estimate_votes_to_convergence(target_avg_sigma_sq=0.1):
+def estimate_votes_to_convergence(target_avg_sigma_sq=0.1, items=None,
+                                  comparisons=None):
     """
     Estimate how many more votes needed for rankings to stabilize.
     Uses historical rate of uncertainty reduction.
     """
     from gavel import crowd_bt
 
-    items = Item.query.filter(Item.active == True).all()
-    decisions = Decision.query.all()
+    items, comparisons = _resolve(items, comparisons)
+    items = _active(items)
+    decisions = comparisons
 
     if not items or not decisions:
         return None
@@ -113,56 +151,68 @@ def generate_graph_data_for_visualization(G):
 # 3. PROJECT COVERAGE HEATMAP
 # ========================================
 
-def get_coverage_matrix():
+def get_coverage_matrix(items=None, comparisons=None):
     """
-    Generate a comparison coverage matrix showing which project pairs have been compared.
-    Returns a matrix where cell (i,j) shows how many times project i was compared to project j.
+    Comparison coverage: how much of the project space judges have actually
+    covered, and which pairs are lagging.
+
+    This used to allocate an N x N Python matrix -- 90,000 cells at 300
+    projects -- and scan all N*(N-1)/2 pairs twice. The matrix was never
+    rendered: the template reads only the coverage percentage, the average, and
+    the first ten under-compared pairs. Counting the pairs that actually occur
+    gives identical numbers in time proportional to the number of comparisons
+    rather than the square of the project count.
     """
-    items = Item.query.filter(Item.active == True).order_by(Item.id).all()
-    decisions = Decision.query.all()
+    items, comparisons = _resolve(items, comparisons)
+    items = [i for i in _active(items)]
+    items.sort(key=lambda i: i.id)
 
-    # Create project ID to index mapping
-    project_ids = [item.id for item in items]
-    id_to_idx = {pid: idx for idx, pid in enumerate(project_ids)}
+    active_ids = {item.id for item in items}
+    n = len(items)
 
-    # Initialize matrix
-    n = len(project_ids)
-    matrix = [[0 for _ in range(n)] for _ in range(n)]
+    # Only pairs that were actually compared take up space.
+    pair_counts = defaultdict(int)
+    for winner_id, loser_id, _annotator_id, _time in comparisons:
+        if winner_id in active_ids and loser_id in active_ids \
+                and winner_id != loser_id:
+            pair_counts[(min(winner_id, loser_id),
+                         max(winner_id, loser_id))] += 1
 
-    # Fill matrix with comparison counts
-    for dec in decisions:
-        winner_idx = id_to_idx.get(dec.winner_id)
-        loser_idx = id_to_idx.get(dec.loser_id)
-
-        if winner_idx is not None and loser_idx is not None:
-            matrix[winner_idx][loser_idx] += 1
-            matrix[loser_idx][winner_idx] += 1  # Symmetric
-
-    # Calculate coverage statistics
     total_possible_comparisons = n * (n - 1) // 2
-    actual_comparisons = sum(1 for i in range(n) for j in range(i+1, n) if matrix[i][j] > 0)
-    coverage_percentage = (actual_comparisons / total_possible_comparisons * 100) if total_possible_comparisons > 0 else 0
+    actual_comparisons = len(pair_counts)
+    coverage_percentage = (actual_comparisons / total_possible_comparisons * 100) \
+        if total_possible_comparisons > 0 else 0
 
-    # Find under-compared pairs
-    avg_comparisons_per_pair = sum(matrix[i][j] for i in range(n) for j in range(i+1, n)) / total_possible_comparisons if total_possible_comparisons > 0 else 0
+    avg_comparisons_per_pair = (sum(pair_counts.values()) / total_possible_comparisons) \
+        if total_possible_comparisons > 0 else 0
 
+    # Find under-compared pairs. Stopping at ten keeps this cheap: uncompared
+    # pairs qualify immediately whenever the average is above zero, so the scan
+    # almost always ends in the first handful of iterations instead of walking
+    # every pair.
+    threshold = avg_comparisons_per_pair * 0.5
     under_compared_pairs = []
     for i in range(n):
-        for j in range(i+1, n):
-            if matrix[i][j] < avg_comparisons_per_pair * 0.5:  # Less than 50% of average
+        if len(under_compared_pairs) >= 10:
+            break
+        for j in range(i + 1, n):
+            a, b = items[i].id, items[j].id
+            count = pair_counts.get((min(a, b), max(a, b)), 0)
+            if count < threshold:
                 under_compared_pairs.append({
                     'project_a': items[i].name,
                     'project_b': items[j].name,
-                    'comparisons': matrix[i][j]
+                    'comparisons': count
                 })
+                if len(under_compared_pairs) >= 10:
+                    break
 
     return {
-        'matrix': matrix,
-        'project_ids': project_ids,
+        'project_ids': [item.id for item in items],
         'project_names': [item.name for item in items],
         'coverage_percentage': coverage_percentage,
         'avg_comparisons_per_pair': avg_comparisons_per_pair,
-        'under_compared_pairs': under_compared_pairs[:10]  # Top 10
+        'under_compared_pairs': under_compared_pairs
     }
 
 
@@ -170,14 +220,14 @@ def get_coverage_matrix():
 # 4. VOTING ACTIVITY TIMELINE
 # ========================================
 
-def get_voting_timeline(hours=2):
+def get_voting_timeline(hours=2, comparisons=None):
     """
     Get voting activity over time.
     Returns vote counts in 15-second buckets for the last N hours.
     """
-    from gavel import db
-
-    decisions = Decision.query.order_by(Decision.time).all()
+    if comparisons is None:
+        comparisons = load_comparisons()
+    decisions = comparisons
 
     if not decisions:
         return {
@@ -193,13 +243,13 @@ def get_voting_timeline(hours=2):
     start_time = now - timedelta(hours=hours)
 
     # Filter decisions in time range
-    recent_decisions = [d for d in decisions if d.time >= start_time]
+    recent_decisions = [d for d in decisions if d[3] >= start_time]
 
     # Create 15-second buckets
     bucket_counts = defaultdict(int)
     for dec in recent_decisions:
         # Round down to nearest 15 seconds
-        bucket_time = dec.time.replace(microsecond=0)
+        bucket_time = dec[3].replace(microsecond=0)
         second = (bucket_time.second // 15) * 15
         bucket_time = bucket_time.replace(second=second)
         bucket_counts[bucket_time] += 1
@@ -245,15 +295,17 @@ def get_voting_timeline(hours=2):
 # 7. STATISTICAL SUMMARY DASHBOARD
 # ========================================
 
-def get_statistical_summary():
+def get_statistical_summary(items=None, judges=None, comparisons=None):
     """
     Calculate comprehensive statistical summary for dashboard.
     """
     from gavel import crowd_bt
 
-    items = Item.query.filter(Item.active == True).all()
-    judges = Annotator.query.all()
-    decisions = Decision.query.all()
+    items, comparisons = _resolve(items, comparisons)
+    items = _active(items)
+    if judges is None:
+        judges = Annotator.query_current().all()
+    decisions = comparisons
 
     if not items or not decisions:
         return {
@@ -276,16 +328,16 @@ def get_statistical_summary():
 
     # Comparisons per project
     project_comparison_counts = defaultdict(int)
-    for dec in decisions:
-        project_comparison_counts[dec.winner_id] += 1
-        project_comparison_counts[dec.loser_id] += 1
+    for winner_id, loser_id, _annotator_id, _time in decisions:
+        project_comparison_counts[winner_id] += 1
+        project_comparison_counts[loser_id] += 1
 
     avg_comparisons_per_project = sum(project_comparison_counts.values()) / (2 * total_projects) if total_projects > 0 else 0
 
     # Comparisons per judge
     judge_comparison_counts = defaultdict(int)
-    for dec in decisions:
-        judge_comparison_counts[dec.annotator_id] += 1
+    for _winner_id, _loser_id, annotator_id, _time in decisions:
+        judge_comparison_counts[annotator_id] += 1
 
     avg_comparisons_per_judge = total_comparisons / total_judges if total_judges > 0 else 0
 
@@ -308,7 +360,8 @@ def get_statistical_summary():
         convergence_status = 'Early Stage'
 
     # Estimate votes needed
-    estimated_votes_needed = estimate_votes_to_convergence(target_avg_sigma_sq=0.5)
+    estimated_votes_needed = estimate_votes_to_convergence(
+        target_avg_sigma_sq=0.5, items=items, comparisons=decisions)
 
     # Projects with high uncertainty
     high_uncertainty_projects = sorted(

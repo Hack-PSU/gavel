@@ -3,3 +3,10 @@ config.yaml
 env/
 .vagrant/
 .env.auth
+# Local dev: production snapshots and pulled env. Contains real judge
+# names and emails -- never commit.
+local/
+
+# Load tests: loadtest.api.py contains a live API key.
+loadtest.py
+loadtest.api.py

@@ -49,6 +49,19 @@
           <option value="technical_issues">Technical issues</option>
           <option value="other">Other</option>
         </select>
+
+        <div id="skip-note-container" style="margin-top: 0.75rem;" hidden>
+          <label for="skip-note" style="display: block; margin-bottom: 0.5rem; font-weight: 600;">
+            Please explain <span style="color: #d00;">*</span>
+          </label>
+          <textarea
+            name="skip_note"
+            id="skip-note"
+            rows="2"
+            placeholder="Briefly, why are you skipping this project?"
+            style="width: 100%; padding: 0.75rem; border: 1px solid #e4e4e4; border-radius: 4px; font-family: inherit; resize: vertical;"
+          ></textarea>
+        </div>
       </div>
 
       <input type="submit" name="action" value="Submit" id="vote-submit" class="button-full button-gap">
@@ -67,20 +80,30 @@
       const continueRadio = document.getElementById('vote-continue-radio');
       const form = document.querySelector('form');
 
+      const skipNoteContainer = document.getElementById('skip-note-container');
+      const skipNote = document.getElementById('skip-note');
+
+      // "Other" is meaningless on its own, so it requires an explanation.
+      const REASONS_NEEDING_NOTE = ['other'];
+
+      function updateSkipNoteVisibility() {
+        const needsNote = skipRadio.checked &&
+          REASONS_NEEDING_NOTE.indexOf(skipReasonSelect.value) !== -1;
+        skipNoteContainer.hidden = !needsNote;
+        skipNote.required = needsNote;
+      }
+
       // Initially show/hide skip reason based on selection
       function updateSkipReasonVisibility() {
-        if (skipRadio.checked) {
-          skipReasonContainer.style.display = 'block';
-          skipReasonSelect.required = true;
-        } else {
-          skipReasonContainer.style.display = 'none';
-          skipReasonSelect.required = false;
-        }
+        skipReasonContainer.hidden = !skipRadio.checked;
+        skipReasonSelect.required = skipRadio.checked;
+        updateSkipNoteVisibility();
       }
 
       // Listen for changes to action radio buttons
       skipRadio.addEventListener('change', updateSkipReasonVisibility);
       continueRadio.addEventListener('change', updateSkipReasonVisibility);
+      skipReasonSelect.addEventListener('change', updateSkipNoteVisibility);
 
       // Form validation
       form.addEventListener('submit', function(e) {
@@ -88,6 +111,12 @@
           e.preventDefault();
           alert('Please select a reason for skipping.');
           skipReasonSelect.focus();
+          return false;
+        }
+        if (!skipNoteContainer.hidden && !skipNote.value.trim()) {
+          e.preventDefault();
+          alert('Please say briefly why you are skipping this project.');
+          skipNote.focus();
           return false;
         }
       });

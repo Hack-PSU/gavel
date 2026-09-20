@@ -1,50 +1,79 @@
-# Python
+# Anything not needed to run the app is excluded, because `COPY . .` is
+# otherwise indiscriminate and this image is pushed to Artifact Registry.
+
+# --- secrets and local state -------------------------------------------
+# Patterns are anchored at the build context root, so `venv/` alone does not
+# match `local/venv`. Use ** for anything that can appear at any depth.
+local/
+**/venv/
+**/.venv/
+**/env/
+**/ENV/
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*-credentials.json
+*service-account*.json
+
+# --- data ---------------------------------------------------------------
+# Database dumps and snapshots contain real judge names and email addresses.
+*.sql
+*.sql.gz
+*.dump
+*.sqlite
+*.db
+backups/
+
+# --- load tests ---------------------------------------------------------
+# loadtest.api.py carries an API key; none of this belongs in a release image.
+loadtest*.py
+locustfile.py
+
+# --- python -------------------------------------------------------------
 __pycache__/
 *.py[cod]
 *$py.class
 *.so
 .Python
-env/
-venv/
-ENV/
 *.egg-info/
 dist/
 build/
+.pytest_cache/
+.mypy_cache/
 
-# IDE
+# --- vcs, tooling, editors ----------------------------------------------
+.git/
+.gitignore
+.gitattributes
+.github/
+.claude/
 .vscode/
 .idea/
 *.swp
 *.swo
 *~
 
-# OS
+# --- os -----------------------------------------------------------------
 .DS_Store
 Thumbs.db
 
-# Git
-.git/
-.gitignore
-
-# Config
-config.yaml
-.env
-
-# Database
-*.db
-*.sqlite
-
-# Logs
-*.log
-
-# Docker
+# --- docker / vagrant ----------------------------------------------------
 Dockerfile
+Dockerfile.*
 docker-compose.yml
 .dockerignore
+Vagrantfile
+config.vagrant.yaml
 
-# Documentation (don't need in container)
+# --- config that must come from the environment --------------------------
+config.yaml
+
+# --- docs and logs -------------------------------------------------------
 *.md
 !README.md
+*.log
 
-# Test files
+# --- tests ---------------------------------------------------------------
 test_*.py

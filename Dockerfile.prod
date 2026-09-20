@@ -1,93 +1,101 @@
-FROM python:3.9-slim
+# Gavel for Cloud Run.
+#
+# The database is external now (Cloud SQL), so this image is one process: a
+# gunicorn serving the app on $PORT. It previously ran PostgreSQL inside the
+# container under supervisord, with a VOLUME for the data directory -- which
+# Cloud Run ignores, because its filesystem is in-memory and discarded when the
+# instance goes away. Judging data did not survive a cold start.
+#
+# Build:  docker build -f Dockerfile.prod -t gavel .
+# Run:    docker run -e PORT=8080 -e DATABASE_URL=... -p 8080:8080 gavel
 
-# Install PostgreSQL and dependencies
-RUN apt-get update && apt-get install -y \
-    postgresql \
-    postgresql-contrib \
+# ---------------------------------------------------------------- build stage
+FROM python:3.9-slim AS build
+
+# psycopg2 is pinned to a source distribution, so it needs a compiler and the
+# PostgreSQL client headers. Both stay in this stage; the runtime image gets
+# only the built packages.
+RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
     python3-dev \
     libpq-dev \
-    supervisor \
     && rm -rf /var/lib/apt/lists/*
 
-# Set working directory
 WORKDIR /app
 
-# Copy requirements and install Python dependencies
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt gunicorn
+RUN pip install --no-cache-dir --prefix=/install -r requirements.txt gunicorn
 
-# Copy application code
+# Compile the stylesheet at build time. Otherwise the first request to every
+# cold instance pays for it, and pyScss has to be installed at runtime.
 COPY . .
+ENV PYTHONPATH=/install/lib/python3.9/site-packages
+RUN IGNORE_CONFIG_FILE=1 SECRET_KEY=build ADMIN_PASSWORD=build \
+    DISABLE_EMAIL=true EMAIL_FROM=x EMAIL_USER=x EMAIL_PASSWORD=x \
+    SEND_STATS=false ENABLE_PROJECT_SYNC=false \
+    python -c "import logging, gavel; from webassets.script import CommandLineEnvironment; logging.basicConfig(level=logging.INFO); CommandLineEnvironment(gavel.assets, logging.getLogger('assets')).build()" \
+    && test -s gavel/static/all.css
 
-# Create PostgreSQL data directory
-RUN mkdir -p /var/lib/postgresql/data && \
-    chown -R postgres:postgres /var/lib/postgresql
+# -------------------------------------------------------------- runtime stage
+FROM python:3.9-slim
 
-# Set defaults and internal config
+# libpq5 is the runtime half of libpq-dev, needed by psycopg2. No compiler, no
+# database server, no supervisor.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    libpq5 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Cloud Run does not require a non-root user, but nothing here needs root.
+RUN useradd --create-home --shell /usr/sbin/nologin gavel
+
+WORKDIR /app
+
+COPY --from=build /install /usr/local
+COPY --from=build --chown=gavel:gavel /app /app
+
 ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
     FLASK_APP=gavel \
-    PORT=5000 \
-    DATABASE_URL=postgresql://gavel:gavel_prod_pass@localhost:5432/gavel \
-    DB_URI=postgresql://gavel:gavel_prod_pass@localhost:5432/gavel \
-    # Auth defaults
+    PORT=8080 \
+    PROXY=true \
+    IGNORE_CONFIG_FILE=true \
     AUTH_ENVIRONMENT=production \
     MIN_JUDGE_ROLE=2 \
     MIN_ADMIN_ROLE=3 \
     AUTH_SERVER_URL=https://auth.hackpsu.org/api/sessionUser \
     AUTH_LOGIN_URL=https://auth.hackpsu.org/login \
     AUTH_LOGOUT_URL=https://auth.hackpsu.org/api/sessionLogout \
+    AUTH_CACHE_TTL=60 \
+    AUTH_TIMEOUT=5 \
     GAVEL_URL=https://gavel.hackpsu.org \
     HACKPSU_API_URL=https://apiv3.hackpsu.org/judging/projects \
-    # App defaults
     DEBUG=false \
     DISABLE_EMAIL=true \
-    EMAIL_FROM=noreply@hackpsu.org \
-    EMAIL_USER=unused \
-    EMAIL_PASSWORD=unused \
-    PROXY=true \
     SEND_STATS=false \
     MIN_VIEWS=2 \
     TIMEOUT=1.0 \
-    IGNORE_CONFIG_FILE=true \
-    ENABLE_PROJECT_SYNC=true \
-    PROJECT_SYNC_INTERVAL=60
-# Required runtime env vars:
-# - SECRET_KEY
+    ENABLE_PROJECT_SYNC=false \
+    PROJECT_SYNC_INTERVAL=300
 
-# Create supervisor config
-RUN echo '[supervisord]\n\
-nodaemon=true\n\
-user=root\n\
-\n\
-[program:postgresql]\n\
-user=postgres\n\
-command=bash -c "exec /usr/lib/postgresql/*/bin/postgres -D /var/lib/postgresql/data"\n\
-autostart=true\n\
-autorestart=true\n\
-stdout_logfile=/dev/stdout\n\
-stdout_logfile_maxbytes=0\n\
-stderr_logfile=/dev/stderr\n\
-stderr_logfile_maxbytes=0\n\
-\n\
-[program:gavel]\n\
-command=gunicorn -b 0.0.0.0:5000 -w 16 gavel:app\n\
-autostart=true\n\
-autorestart=true\n\
-stdout_logfile=/dev/stdout\n\
-stdout_logfile_maxbytes=0\n\
-stderr_logfile=/dev/stderr\n\
-stderr_logfile_maxbytes=0' > /etc/supervisor/conf.d/supervisord.conf
+# PORT           Cloud Run injects this; gunicorn.conf.py binds it.
+# PROXY          Cloud Run terminates TLS and adds one X-Forwarded hop.
+# ENABLE_PROJECT_SYNC is off by default: the in-process scheduler only runs
+#                while an instance is alive, and Cloud Run throttles CPU
+#                between requests. See DEPLOY.md before turning it on.
+#
+# Required at deploy time:
+#   SECRET_KEY     signing key for the session cookie
+#   DATABASE_URL   Cloud SQL over the unix socket Cloud Run mounts:
+#                  mysql+pymysql://USER:PASS@/gavel
+#                      ?unix_socket=/cloudsql/PROJECT:REGION:INSTANCE
+#
+# Schema changes are never applied on startup. Run them deliberately:
+#   python migrate.py upgrade --database-url "$DATABASE_URL"
 
-# Copy startup script
-COPY start.sh /app/start.sh
-RUN chmod +x /app/start.sh
+USER gavel
 
-# Expose port
-EXPOSE 5000
+EXPOSE 8080
 
-# Volume for PostgreSQL data persistence
-VOLUME ["/var/lib/postgresql/data"]
-
-# Start script
-CMD ["/app/start.sh"]
+# gunicorn is PID 1 and handles SIGTERM, which is how Cloud Run drains an
+# instance.
+CMD ["gunicorn", "--config", "gunicorn.conf.py", "gavel:app"]

@@ -77,6 +77,11 @@
                 ({{ skip_reasons[item.id].replace('_', ' ').title() }})
               </span>
               {% endif %}
+              {% if item.id in skip_notes %}
+              <div style="color: #666; font-style: italic; margin-left: 0.5rem;">
+                &ldquo;{{ skip_notes[item.id] }}&rdquo;
+              </div>
+              {% endif %}
             </li>
             {% endfor %}
           </ul>

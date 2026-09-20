@@ -63,34 +63,95 @@ def index():
     else:
         return render_template('vote.html', prev=annotator.prev, next=annotator.next, timer_duration=settings.TIMER_DURATION)
 
+def read_notes():
+    '''
+    Read the judge's free-text notes from the submitted form.
+
+    No length check: notes are stored in an unbounded TEXT column. The original
+    bug was a bounded VARCHAR rejecting long notes, and capping the input would
+    have been the same bug with a friendlier error message.
+    '''
+    return (request.form.get('notes', '').strip() or None)
+
+def read_skip_reason():
+    '''
+    Read and validate the skip reason and its accompanying note.
+
+    Returns (reason, note_or_None, error_message_or_None). The only rules here
+    are that the reason is one we offer, and that "other" says what it means --
+    both real constraints, unlike a length.
+    '''
+    reason = request.form.get('skip_reason', '').strip()
+    if not reason:
+        return None, None, 'Please choose a reason for skipping this project.'
+    if reason not in SKIP_REASONS:
+        return None, None, 'That is not a valid skip reason.'
+
+    note = request.form.get('skip_note', '').strip()
+    if reason in SKIP_REASONS_REQUIRING_NOTE and not note:
+        return None, None, (
+            'Please say briefly why you are skipping this project.'
+        )
+    return reason, (note or None), None
+
 @app.route('/vote', methods=['POST'])
 @requires_open(redirect_to='index')
 @hackpsu_auth_required
 def vote():
+    annotator = get_current_annotator()
+    if annotator is None or annotator.prev is None or annotator.next is None:
+        # Stale form, double submit, or a reassignment between render and
+        # submit. Sending them back to index re-renders the current state
+        # instead of raising AttributeError on `annotator.prev.id`.
+        return redirect(url_for('index'))
+
+    action = request.form.get('action', '')
+
+    # Validate everything *before* opening the transaction: with_retries can
+    # call tx() more than once, and a `return` from inside it is discarded, so
+    # error responses raised in there never reached the judge.
+    notes = read_notes()
+
+    skip_reason = skip_note = None
+    if action == 'Skip':
+        skip_reason, skip_note, error = read_skip_reason()
+        if error:
+            return utils.user_error(error)
+        # A judge who writes notes and then skips used to lose them entirely.
+        # Keep them on the Skip record, in full.
+        if notes:
+            skip_note = '\n\n'.join(filter(None, [skip_note, notes]))
+    elif action not in ('Previous', 'Current'):
+        return utils.user_error('Please choose Previous, Current, or Skip.')
+
     def tx():
         annotator = get_current_annotator()
+        if annotator.prev is None or annotator.next is None:
+            return
         if annotator.prev.id == int(request.form['prev_id']) and annotator.next.id == int(request.form['next_id']):
-            notes = request.form.get('notes', '').strip() or None
-            if request.form['action'] == 'Skip':
-                # Validate skip reason is provided
-                skip_reason = request.form.get('skip_reason', '').strip()
-                if not skip_reason:
-                    raise ValueError('Skip reason is required')
-
+            if action == 'Skip':
                 # Record the skip with reason
-                skip = Skip(annotator, annotator.next, skip_reason)
+                skip = Skip(annotator, annotator.next, skip_reason, note=skip_note)
                 db.session.add(skip)
                 annotator.ignore.append(annotator.next)
             else:
+                # The note is about the project the judge was just looking at,
+                # which is `next` regardless of which one they picked.
+                notes_item = annotator.next
                 # ignore things that were deactivated in the middle of judging
                 if annotator.prev.active and annotator.next.active:
-                    if request.form['action'] == 'Previous':
+                    if action == 'Previous':
                         perform_vote(annotator, next_won=False)
-                        decision = Decision(annotator, winner=annotator.prev, loser=annotator.next, notes=notes)
-                    elif request.form['action'] == 'Current':
+                        decision = Decision(annotator, winner=annotator.prev, loser=annotator.next, notes=notes, notes_item=notes_item)
+                    else:
                         perform_vote(annotator, next_won=True)
-                        decision = Decision(annotator, winner=annotator.next, loser=annotator.prev, notes=notes)
+                        decision = Decision(annotator, winner=annotator.next, loser=annotator.prev, notes=notes, notes_item=notes_item)
                     db.session.add(decision)
+                elif notes:
+                    # No comparison is recorded when a project was deactivated
+                    # mid-judging, but the judge still wrote something about a
+                    # real project. Don't throw it away.
+                    db.session.add(Skip(annotator, notes_item, 'deactivated', note=notes))
                 annotator.next.viewed.append(annotator) # counted as viewed even if deactivated
                 annotator.prev = annotator.next
                 annotator.ignore.append(annotator.prev)
@@ -103,22 +164,34 @@ def vote():
 @requires_open(redirect_to='index')
 @hackpsu_auth_required
 def begin():
+    annotator = get_current_annotator()
+    if annotator is None or annotator.next is None:
+        return redirect(url_for('index'))
+
+    action = request.form.get('action', '')
+    if action not in ('Continue', 'Skip'):
+        return utils.user_error('Please choose Continue or Skip.')
+
+    # Validated up front, outside the retried transaction -- see vote().
+    skip_reason = skip_note = None
+    if action == 'Skip':
+        skip_reason, skip_note, error = read_skip_reason()
+        if error:
+            return utils.user_error(error)
+
     def tx():
         annotator = get_current_annotator()
+        if annotator.next is None:
+            return
         if annotator.next.id == int(request.form['item_id']):
             annotator.ignore.append(annotator.next)
-            if request.form['action'] == 'Continue':
+            if action == 'Continue':
                 annotator.next.viewed.append(annotator)
                 annotator.prev = annotator.next
                 annotator.update_next(choose_next(annotator))
-            elif request.form['action'] == 'Skip':
-                # Validate skip reason is provided
-                skip_reason = request.form.get('skip_reason', '').strip()
-                if not skip_reason:
-                    raise ValueError('Skip reason is required')
-
+            else:
                 # Record the skip with reason
-                skip = Skip(annotator, annotator.next, skip_reason)
+                skip = Skip(annotator, annotator.next, skip_reason, note=skip_note)
                 db.session.add(skip)
                 annotator.next = None # will be reset in index
             db.session.commit()
@@ -180,17 +253,17 @@ def preferred_items(annotator):
     ignored_ids = {i.id for i in annotator.ignore}
 
     if ignored_ids:
-        available_items = Item.query.filter(
+        available_items = Item.query_current().filter(
             (Item.active == True) & (~Item.id.in_(ignored_ids))
         ).all()
     else:
-        available_items = Item.query.filter(Item.active == True).all()
+        available_items = Item.query_current().filter(Item.active == True).all()
 
     prioritized_items = [i for i in available_items if i.prioritized]
 
     items = prioritized_items if prioritized_items else available_items
 
-    annotators = Annotator.query.filter(
+    annotators = Annotator.query_current().filter(
         (Annotator.active == True) & (Annotator.next != None) & (Annotator.updated != None)
     ).all()
     busy = {i.next.id for i in annotators if \
@@ -253,28 +326,70 @@ def perform_vote(annotator, next_won):
     loser.sigma_sq = u_loser_sigma_sq
 
 from flask import jsonify
+from sqlalchemy.orm import joinedload
+
+def _note_records():
+    """
+    Every stored note, paired with the project it is actually about.
+
+    Notes live on two tables: Decision.notes (the judge compared two projects
+    and commented) and Skip.note (the judge skipped, or explained a skip).
+    Both are about a single project, so both are read here.
+    """
+    records = []
+
+    hackathon_id = current_hackathon_id()
+    decisions = Decision.query.options(
+        joinedload(Decision.winner),
+        joinedload(Decision.loser),
+        joinedload(Decision.notes_item),
+    ).filter(
+        (Decision.notes.isnot(None)) & (Decision.hackathon_id == hackathon_id)
+    ).all()
+    for d in decisions:
+        text = (d.notes or '').strip()
+        if not text:
+            continue
+        item = d.note_subject
+        records.append({
+            'annotator_id': d.annotator_id,
+            'item_id': item.id if item else None,
+            'project': item.name if item else '(Unknown Project)',
+            'note': text,
+            'time': d.time,
+        })
+
+    skips = Skip.query.options(joinedload(Skip.item)).filter(
+        (Skip.note.isnot(None)) & (Skip.hackathon_id == hackathon_id)
+    ).all()
+    for sk in skips:
+        text = (sk.note or '').strip()
+        if not text:
+            continue
+        records.append({
+            'annotator_id': sk.annotator_id,
+            'item_id': sk.item_id,
+            'project': sk.item.name if sk.item else '(Unknown Project)',
+            'note': text,
+            'time': sk.time,
+        })
+
+    records.sort(key=lambda r: r['time'], reverse=True)
+    return records
 
 @app.route('/api/judge_notes')
 @hackpsu_auth_required
 def get_judge_notes():
     annotator = get_current_annotator()
+    if annotator is None:
+        return jsonify([])
 
-    # Retrieve all notes made by this judge (if stored in Decision model)
-    decisions = Decision.query.filter_by(annotator_id=annotator.id).all()
-
-    # Build a clean list of notes and associated project names
-    notes = []
-    for d in decisions:
-        if d.notes:  # only include those with actual notes
-            notes.append({
-                "project": d.winner.name if d.winner else "(Unknown Project)",
-                "note": d.notes
-                
-            })
-            
-
-    # Sort newest first 
-    notes = sorted(notes, key=lambda x: x["project"].lower())
+    # Newest first, as this endpoint has always claimed to be.
+    notes = [{
+        'project': r['project'],
+        'note': r['note'],
+        'time': r['time'].strftime('%Y-%m-%d %H:%M:%S'),
+    } for r in _note_records() if r['annotator_id'] == annotator.id]
 
     return jsonify(notes)
 
@@ -282,29 +397,21 @@ def get_judge_notes():
 @app.route('/api/all_notes')
 @hackpsu_auth_required
 def all_notes():
-    """Return all projects (winner or loser) and all notes from all judges."""
-    decisions = Decision.query.filter(Decision.notes.isnot(None)).all()
+    """Return every project that has notes, with all judges' notes on it."""
+    by_project = {}
+    for r in _note_records():
+        # Group by item id, not by name: two projects can share a name, and
+        # grouping by name silently merges them. Identical notes from
+        # different judges are both kept -- the old code de-duplicated by
+        # text, so a second judge writing "Great demo" was discarded.
+        key = (r['item_id'], r['project'])
+        by_project.setdefault(key, []).append(r['note'])
 
-    data = {}
-
-    for d in decisions:
-        # For each decision, include the winner and loser projects if they exist
-        projects = []
-        if d.winner:
-            projects.append(d.winner.name)
-        if d.loser:
-            projects.append(d.loser.name)
-
-        for project_name in projects:
-            if project_name not in data:
-                data[project_name] = []
-            note_text = d.notes.strip()
-            if note_text and note_text not in data[project_name]:
-                data[project_name].append(note_text)
-
-    # Convert dict → list for frontend
-    formatted = [{"project": name, "notes": notes} for name, notes in data.items()]
-    formatted.sort(key=lambda x: x["project"].lower())
+    formatted = [
+        {'project': name, 'notes': notes}
+        for (_item_id, name), notes in by_project.items()
+    ]
+    formatted.sort(key=lambda x: x['project'].lower())
 
     return jsonify(formatted)
 
