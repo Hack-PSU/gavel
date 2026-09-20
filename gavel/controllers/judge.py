@@ -15,6 +15,7 @@ from flask import (
 from numpy.random import choice, random, shuffle
 from functools import wraps
 from datetime import datetime
+from sqlalchemy import text
 
 def requires_open(redirect_to):
     def decorator(f):
@@ -30,8 +31,28 @@ def requires_open(redirect_to):
 
 @app.route('/health')
 def health():
-    """Health check endpoint - no auth required"""
-    return {'status': 'ok', 'service': 'gavel'}, 200
+    """
+    Health check endpoint - no auth required.
+
+    Reports whether the database is reachable, because on Cloud Run the
+    database is the one dependency that can be misconfigured without the
+    container failing to start: the pool is lazy, so a bad DATABASE_URL first
+    shows up when a judge tries to vote.
+
+    Always returns 200. Cloud Run restarts instances that fail their probe, so
+    reporting a transient database blip as unhealthy would turn it into a
+    restart loop that makes recovery slower.
+    """
+    database = 'ok'
+    try:
+        db.session.execute(text('SELECT 1'))
+    except Exception as e:
+        database = 'error: %s' % type(e).__name__
+        app.logger.warning('health check could not reach the database: %s', e)
+    finally:
+        db.session.remove()
+
+    return {'status': 'ok', 'service': 'gavel', 'database': database}, 200
 
 @app.route('/')
 @hackpsu_auth_required
