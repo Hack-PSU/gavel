@@ -5,6 +5,7 @@ import gavel.settings as settings
 import gavel.utils as utils
 import gavel.crowd_bt as crowd_bt
 from gavel.firebase_session_auth import hackpsu_auth_required
+from gavel.project_sync import maybe_sync_projects
 from flask import (
     redirect,
     render_template,
@@ -59,7 +60,9 @@ def health():
 def index():
     annotator = get_current_annotator()
 
-    # db.session.expire_all()
+    # Refresh the project list if it has gone stale. Costs one indexed read
+    # in the common case; at most one request per interval actually syncs.
+    maybe_sync_projects()
 
     if Setting.value_of(SETTING_CLOSED) == SETTING_TRUE:
         return render_template(

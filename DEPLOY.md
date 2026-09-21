@@ -69,15 +69,34 @@ See `MIGRATION.md`.
 
 ## Project sync
 
-`ENABLE_PROJECT_SYNC` is **off** in the image. The sync runs on an in-process
-APScheduler, and Cloud Run throttles CPU between requests and scales to zero --
-so a background thread does not reliably fire.
+Sync happens on demand, driven by the database rather than by a clock.
 
-To use it, deploy with `--min-instances 1 --no-cpu-throttling` and set
-`ENABLE_PROJECT_SYNC=true`. A PostgreSQL advisory lock or MySQL `GET_LOCK`
-elects one instance, so extra instances will not duplicate the work.
+When someone opens the judging or admin page, Gavel compares a
+`last_project_sync` timestamp -- stored per hackathon in the `setting` table --
+against `PROJECT_SYNC_INTERVAL` (default 300s). If it has gone stale, that
+request refreshes the project list from the HackPSU API.
 
-Otherwise sync from the admin page, which does the same thing on demand.
+This suits Cloud Run: the database outlives any instance, so it does not matter
+how often containers start and stop, and nothing needs CPU while idle. It also
+means the data is only ever refreshed when someone is actually using the tool,
+which is exactly when it matters.
+
+The staleness check is a compare-and-swap on the stored timestamp, so of a
+hundred judges opening the page the instant the interval lapses, exactly one
+syncs and the rest read a single indexed row and move on. Verified on both
+PostgreSQL and MySQL with 24 concurrent callers: one winner.
+
+A failed sync never surfaces to the judge -- the page renders from whatever is
+already in the database.
+
+- `PROJECT_SYNC_INTERVAL` -- seconds before the list is considered stale.
+- `LAZY_PROJECT_SYNC=false` -- turn the on-demand check off entirely.
+- `ENABLE_PROJECT_SYNC=true` -- additionally run the old in-process
+  APScheduler. Off by default, and unnecessary now: it needs
+  `--min-instances 1 --no-cpu-throttling` to fire reliably.
+
+The admin page also has a **Sync** button for both the project list and the
+active hackathon, for when you do not want to wait out the interval.
 
 ## Email
 

@@ -6,7 +6,19 @@ Runs periodically to keep Gavel projects in sync with production
 import requests
 import os
 from urllib.parse import urljoin
-from gavel.models import Hackathon, Item, db, with_retries
+import time
+
+from sqlalchemy.exc import IntegrityError
+
+from gavel.constants import SETTING_LAST_PROJECT_SYNC
+from gavel.models import (
+    Hackathon,
+    Item,
+    Setting,
+    current_hackathon_id,
+    db,
+    with_retries,
+)
 from gavel import app
 
 HACKPSU_API_URL = os.environ.get('HACKPSU_API_URL', 'https://apiv3.hackpsu.org/judging/projects')
@@ -24,6 +36,9 @@ CATEGORY_FILTER = os.environ.get('CATEGORY_FILTER')  # Optional category filter
 # this keep working if /active/static ever gains a @Roles decorator.
 HACKPSU_API_KEY = os.environ.get('HACKPSU_API_KEY')
 HACKATHON_ID_OVERRIDE = os.environ.get('HACKATHON_ID')
+
+# Refresh on demand when someone opens the tool, rather than on a schedule.
+LAZY_SYNC_ENABLED = os.environ.get('LAZY_PROJECT_SYNC', 'true').lower() == 'true'
 
 
 def _api_headers():
@@ -270,6 +285,98 @@ def _claim_sync_leadership():
         # "this worker syncs" is the old behaviour, which is safe if noisy.
         print(f"[SYNC] Could not acquire sync lock ({e}); syncing from this worker")
         return True
+
+
+
+# ---------------------------------------------------------------- lazy sync
+#
+# Cloud Run scales to zero and throttles CPU between requests, so a background
+# scheduler does not reliably fire. Instead the freshness of the project list
+# is checked when someone actually opens the tool, and a sync runs only if it
+# has gone stale. The database is the shared clock: it outlives any instance,
+# so this works no matter how often Cloud Run starts and stops containers.
+
+def _sync_due(hackathon_id, interval):
+    """
+    Claim the right to sync, atomically.
+
+    Returns True for exactly one caller per interval. Without the claim, a
+    hundred judges opening the page the moment the interval lapses would all
+    see a stale timestamp and all start syncing.
+
+    The claim is a compare-and-swap on the stored timestamp: the UPDATE only
+    matches while the value is still the one that was read, so of two racing
+    requests the second changes no rows and backs off. That needs no advisory
+    lock, and behaves the same on PostgreSQL and MySQL.
+    """
+    now = int(time.time())
+    setting = Setting.by_key(SETTING_LAST_PROJECT_SYNC, hackathon_id)
+
+    if setting is None:
+        # First sync for this hackathon. Whoever inserts the row wins; the
+        # primary key makes the loser fail rather than double-sync.
+        try:
+            db.session.add(
+                Setting(SETTING_LAST_PROJECT_SYNC, str(now), hackathon_id))
+            db.session.commit()
+            return True
+        except IntegrityError:
+            db.session.rollback()
+            return False
+
+    try:
+        last = int(setting.value)
+    except (TypeError, ValueError):
+        last = 0
+    if now - last < interval:
+        return False
+
+    previous = setting.value
+    claimed = db.session.execute(
+        Setting.__table__.update().where(
+            (Setting.__table__.c.key == SETTING_LAST_PROJECT_SYNC) &
+            (Setting.__table__.c.hackathon_id == hackathon_id) &
+            (Setting.__table__.c.value == previous)
+        ).values(value=str(now))
+    ).rowcount
+    db.session.commit()
+    return claimed == 1
+
+
+def maybe_sync_projects(interval=None):
+    """
+    Sync from the HackPSU API if the data has gone stale.
+
+    Safe to call on any page load: the common case is a single indexed read of
+    one settings row, and at most one request per interval does any real work.
+    Never raises -- a judge opening the voting page must not see an error
+    because the upstream API is briefly unavailable.
+    """
+    if not LAZY_SYNC_ENABLED:
+        return False
+
+    interval = interval or int(os.environ.get('PROJECT_SYNC_INTERVAL', 300))
+    try:
+        hackathon_id = current_hackathon_id(required=False)
+        if hackathon_id is None:
+            # No active event yet; syncing one is an explicit admin action.
+            return False
+        if not _sync_due(hackathon_id, interval):
+            return False
+
+        print('[SYNC] project list is stale; refreshing')
+        sync_projects_from_api()
+        return True
+    except Exception as e:
+        # The timestamp has already been claimed, so a failure here means the
+        # next attempt waits out the interval rather than retrying in a loop
+        # against an API that is evidently unhappy.
+        print('[SYNC ERROR] lazy sync failed: %s' % e)
+        try:
+            db.session.rollback()
+        except Exception:
+            pass
+        return False
 
 
 def setup_project_sync():

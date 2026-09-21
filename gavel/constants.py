@@ -23,6 +23,7 @@ SKIP_REASONS_REQUIRING_NOTE = {'other'}
 # keys
 SETTING_CLOSED = 'closed' # boolean
 SETTING_TELEMETRY_LAST_SENT = 'telemetry_sent_time' # integer
+SETTING_LAST_PROJECT_SYNC = 'last_project_sync' # unix timestamp, per hackathon
 # values
 SETTING_TRUE = 'true'
 SETTING_FALSE = 'false'

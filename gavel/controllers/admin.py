@@ -6,7 +6,11 @@ import gavel.utils as utils
 import gavel.stats as stats
 import gavel.analytics as analytics
 from gavel.firebase_session_auth import hackpsu_admin_required
-from gavel.project_sync import sync_projects_from_api, sync_active_hackathon
+from gavel.project_sync import (
+    sync_projects_from_api,
+    sync_active_hackathon,
+    maybe_sync_projects,
+)
 from flask import (
     redirect,
     render_template,
@@ -23,6 +27,7 @@ ALLOWED_EXTENSIONS = set(['csv', 'xlsx', 'xls'])
 @hackpsu_admin_required
 def admin():
     stats.check_send_telemetry()
+    maybe_sync_projects()
 
     # Degrade rather than 503: this page is where an admin starts a hackathon,
     # so it has to render when there isn't one.
