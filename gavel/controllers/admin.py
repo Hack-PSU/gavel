@@ -5,6 +5,7 @@ import gavel.settings as settings
 import gavel.utils as utils
 import gavel.stats as stats
 import gavel.analytics as analytics
+import gavel.demo as gavel_demo
 from gavel.firebase_session_auth import hackpsu_admin_required
 from gavel.project_sync import (
     sync_projects_from_api,
@@ -35,6 +36,7 @@ def admin():
         return render_template(
             'admin_setup.html',
             hackathons=Hackathon.query.order_by(Hackathon.name).all(),
+            demo=None,
         )
 
     hackathon_id = current_hackathon_id()
@@ -75,6 +77,8 @@ def admin():
         # by_id, not current(): resolving the id above already loaded this row
         # into the session, so this is an identity-map hit rather than a query.
         hackathon=Hackathon.by_id(hackathon_id),
+        demo=gavel_demo.active_demo(),
+        demo_minutes_left=(gavel_demo.seconds_remaining() or 0) // 60,
         annotators=annotators,
         counts=counts,
         item_counts=item_counts,
@@ -319,6 +323,42 @@ def hackathon():
             db.session.commit()
         with_retries(tx)
         forget_current_hackathon()
+    return redirect(url_for('admin'))
+
+@app.route('/admin/demo', methods=['POST'])
+@hackpsu_admin_required
+def demo():
+    """
+    Start or end demo mode.
+
+    Ending deletes everything the demo produced. That is the point -- it is how
+    a judge workshop leaves no trace on the real event -- so the button says
+    so, and gavel.demo refuses to purge a hackathon that is not flagged demo.
+    """
+    action = request.form['action']
+    try:
+        if action == 'Start Demo':
+            def tx():
+                demo_hackathon, copied = gavel_demo.start_demo()
+                flash('Demo started: %s (%d project(s) copied)'
+                      % (demo_hackathon.name, copied))
+            with_retries(tx)
+        elif action == 'Extend Demo':
+            minutes = int(request.form.get('minutes', 60))
+            remaining = gavel_demo.extend(minutes)
+            flash('Demo extended by %d minutes (%d minutes left)'
+                  % (minutes, remaining // 60))
+        elif action == 'End Demo':
+            def tx():
+                demo_id, deleted, restored = gavel_demo.end_demo()
+                summary = ', '.join('%d %s' % (n, t)
+                                    for t, n in sorted(deleted.items()) if n)
+                flash('Demo %s deleted (%s). Now active: %s'
+                      % (demo_id, summary or 'nothing to delete',
+                         restored.name if restored else 'none'))
+            with_retries(tx)
+    except gavel_demo.DemoError as e:
+        return utils.user_error(str(e))
     return redirect(url_for('admin'))
 
 @app.route('/admin/sync-projects', methods=['POST'])

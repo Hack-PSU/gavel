@@ -23,12 +23,17 @@ class Hackathon(db.Model):
     id = db.Column(hackathon_id_column(), primary_key=True, nullable=False)
     name = db.Column(db.Text, nullable=False)
     active = db.Column(db.Boolean, default=False, nullable=False)
+    # Disposable: a demo hackathon exists so judges can be trained on the real
+    # system, and everything belonging to it is deleted when demo mode ends.
+    # Only a hackathon carrying this flag may be torn down.
+    demo = db.Column(db.Boolean, default=False, nullable=False)
     synced = db.Column(PreciseDateTime)
 
-    def __init__(self, id, name, active=False):
+    def __init__(self, id, name, active=False, demo=False):
         self.id = id
         self.name = name
         self.active = active
+        self.demo = demo
         self.synced = datetime.utcnow()
 
     @classmethod
@@ -44,6 +49,23 @@ class Hackathon(db.Model):
             return cls.query.get(hackathon_id)
         except NoResultFound:
             return None
+
+    @classmethod
+    def upsert(cls, hackathon_id, name):
+        """
+        Record a hackathon without changing which one is active.
+
+        Used when the API reports an event that must not be switched to yet --
+        during a demo, the demo owns the active flag.
+        """
+        hackathon = cls.by_id(hackathon_id)
+        if hackathon is None:
+            hackathon = cls(hackathon_id, name)
+            db.session.add(hackathon)
+        else:
+            hackathon.name = name
+        hackathon.synced = datetime.utcnow()
+        return hackathon
 
     @classmethod
     def activate(cls, hackathon_id, name):

@@ -24,6 +24,8 @@ SKIP_REASONS_REQUIRING_NOTE = {'other'}
 SETTING_CLOSED = 'closed' # boolean
 SETTING_TELEMETRY_LAST_SENT = 'telemetry_sent_time' # integer
 SETTING_LAST_PROJECT_SYNC = 'last_project_sync' # unix timestamp, per hackathon
+SETTING_DEMO_RESTORE_TO = 'demo_restore_to' # hackathon to reactivate after a demo
+SETTING_DEMO_EXPIRES_AT = 'demo_expires_at' # unix timestamp; demo self-terminates
 # values
 SETTING_TRUE = 'true'
 SETTING_FALSE = 'false'

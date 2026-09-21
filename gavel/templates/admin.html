@@ -87,7 +87,7 @@ table {
       </thead>
       <tbody>
         <tr>
-          <td>{{ hackathon.name }}</td>
+          <td>{{ hackathon.name }}{% if demo %} &mdash; DEMO{% endif %}</td>
           <td>{{ hackathon.id }}</td>
           <td>{{ items | length }}</td>
           <td>{{ annotators | length }}</td>
@@ -101,6 +101,42 @@ table {
         </tr>
       </tbody>
     </table>
+  </div>
+</div>
+
+<div class="item">
+  <div class="banner">
+    <h2>Demo Mode</h2>
+  </div>
+  <div class="info">
+    {% if demo %}
+    <p><strong>A demo is running: {{ demo.name }}</strong></p>
+    <p>Judges are seeing a copy of the projects and can vote normally. None of
+    it touches the real event. Ending the demo <strong>permanently deletes</strong>
+    every project, judge, vote and note it produced, and reactivates the event
+    that was running before.</p>
+    <p><strong>Ends automatically in {{ demo_minutes_left }} minute(s)</strong>
+    &mdash; a demo left running would collect real votes once judging starts,
+    and those would be deleted with it.</p>
+    <form action="{{ url_for('demo') }}" method="post">
+      <input type="submit" name="action" value="Extend Demo" class="neutral">
+      <input type="hidden" name="minutes" value="60">
+      <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+    </form>
+    <form action="{{ url_for('demo') }}" method="post">
+      <input type="submit" name="action" value="End Demo" class="button-full negative">
+      <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+    </form>
+    {% else %}
+    <p>Runs a throwaway copy of the current event so judges can be trained on
+    the real system. It ends and deletes itself automatically if nobody does. Projects are copied across so they see real names and
+    table numbers; votes and notes are kept separate from the live event and
+    deleted when the demo ends.</p>
+    <form action="{{ url_for('demo') }}" method="post">
+      <input type="submit" name="action" value="Start Demo" class="button-full positive">
+      <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
+    </form>
+    {% endif %}
   </div>
 </div>
 

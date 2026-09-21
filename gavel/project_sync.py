@@ -10,7 +10,10 @@ import time
 
 from sqlalchemy.exc import IntegrityError
 
-from gavel.constants import SETTING_LAST_PROJECT_SYNC
+from gavel.constants import (
+    SETTING_DEMO_RESTORE_TO,
+    SETTING_LAST_PROJECT_SYNC,
+)
 from gavel.models import (
     Hackathon,
     Item,
@@ -66,14 +69,8 @@ def sync_active_hackathon():
     if HACKATHON_ID_OVERRIDE:
         # Escape hatch for local development and for running a past event.
         with app.app_context():
-            def tx():
-                Hackathon.activate(HACKATHON_ID_OVERRIDE,
-                                   'Hackathon %s' % HACKATHON_ID_OVERRIDE)
-                db.session.commit()
-            with_retries(tx)
-            print('[SYNC] Active hackathon pinned to %s by HACKATHON_ID'
-                  % HACKATHON_ID_OVERRIDE)
-        return HACKATHON_ID_OVERRIDE
+            return _adopt_hackathon(HACKATHON_ID_OVERRIDE,
+                                    'Hackathon %s' % HACKATHON_ID_OVERRIDE)
 
     url = _active_hackathon_url()
     try:
@@ -96,13 +93,7 @@ def sync_active_hackathon():
         return None
 
     with app.app_context():
-        def tx():
-            Hackathon.activate(hackathon_id, data.get('name') or hackathon_id)
-            db.session.commit()
-        with_retries(tx)
-        print('[SYNC] Active hackathon: %s (%s)'
-              % (data.get('name') or hackathon_id, hackathon_id))
-    return hackathon_id
+        return _adopt_hackathon(hackathon_id, data.get('name') or hackathon_id)
 
 def extract_table_number(name):
     """Extract table number from project name like '(1) Space Goggles'"""
@@ -134,6 +125,47 @@ def matches_category_filter(categories_str, filter_category):
 
     # Check if the filter category matches any of the project's categories
     return filter_category in categories
+
+
+def _adopt_hackathon(hackathon_id, name):
+    """
+    Point Gavel at the hackathon the API reports -- unless a demo is running.
+
+    HackPSU's API is the source of truth for which event is live, and it has no
+    concept of a demo. Left alone, the first judge to open a page during a
+    workshop would sync, the API would say "Fall 26 is active", and the demo
+    would be deactivated underneath everyone -- its data orphaned and no longer
+    reachable from the admin page.
+
+    So while a demo is running it keeps the active flag. The real hackathon is
+    still recorded, and kept as the restore target, so ending the demo returns
+    to whatever the API considers current at that moment rather than whatever
+    it was when the demo started.
+
+    Returns the id of the tenant that is actually active, which is what the
+    project sync should write into.
+    """
+    from gavel.demo import active_demo
+
+    demo = active_demo()
+
+    def tx():
+        Hackathon.upsert(hackathon_id, name)
+        if demo is None:
+            Hackathon.activate(hackathon_id, name)
+        else:
+            Setting.set(SETTING_DEMO_RESTORE_TO, hackathon_id, scoped=False)
+        db.session.commit()
+    with_retries(tx)
+
+    if demo is None:
+        print('[SYNC] Active hackathon: %s (%s)' % (name, hackathon_id))
+        return hackathon_id
+
+    print('[SYNC] Demo in progress (%s); %s recorded as the event to restore'
+          % (demo.id, hackathon_id))
+    return demo.id
+
 
 def sync_projects_from_api():
     """Fetch projects from HackPSU API and sync to Gavel"""
@@ -352,6 +384,14 @@ def maybe_sync_projects(interval=None):
     Never raises -- a judge opening the voting page must not see an error
     because the upstream API is briefly unavailable.
     """
+    # A lapsed demo is ended first, so the sync below targets the real event
+    # rather than refreshing a tenant that is about to be deleted.
+    try:
+        from gavel.demo import expire_if_due
+        expire_if_due()
+    except Exception as e:
+        print('[DEMO ERROR] %s' % e)
+
     if not LAZY_SYNC_ENABLED:
         return False
 

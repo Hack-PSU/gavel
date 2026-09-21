@@ -527,12 +527,29 @@ def tenancy_constraints(conn, log, opts):
             log('added unique index on item (name, hackathon_id)')
 
 
+
+def demo_hackathons(conn, log, opts):
+    """
+    Mark which hackathons are disposable.
+
+    Demo mode runs a real event end to end -- judges log in, see projects, vote,
+    leave notes -- inside a hackathon tenant that is thrown away afterwards.
+    The flag is what makes the teardown safe: deleting a tenant's data is
+    refused unless the tenant is marked demo, so a mistyped id cannot take a
+    real event with it.
+    """
+    _ensure_column(conn, 'hackathon', 'demo',
+                   'BOOLEAN NOT NULL DEFAULT FALSE', log)
+
+
+
 # Ordered. Append new steps; never renumber or reorder existing ones.
 MIGRATIONS = [
     ('0001_notes_are_unbounded', notes_are_unbounded),
     ('0002_hackathon_tenancy', hackathon_tenancy),
     ('0003_adopt_existing_data', adopt_existing_data),
     ('0004_tenancy_constraints', tenancy_constraints),
+    ('0005_demo_hackathons', demo_hackathons),
 ]
 
 

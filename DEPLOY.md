@@ -165,3 +165,38 @@ synchronously in the request.
 The old image could not keep data on Cloud Run at all: its filesystem is
 in-memory and discarded when an instance goes away, so every cold start began
 with an empty database.
+
+## Demo mode
+
+Runs a throwaway copy of the live event so judges can be trained on the real
+system -- log in, get assigned a project, walk to a table, vote, leave notes --
+without any of it reaching the results everyone is about to rely on.
+
+Start and end it from the admin page. Ending deletes every project, judge,
+vote and note the demo produced, and reactivates the event that was running
+before.
+
+Because all judging data already belongs to a hackathon, a demo is just
+another hackathon that happens to be disposable. Nothing in the voting or
+analytics code knows demo mode exists.
+
+Three things make it safe:
+
+- **Teardown is refused unless the tenant carries the `demo` flag.** No
+  mistyped id or stray click can delete a real event.
+- **A demo owns the active flag while it runs.** HackPSU's API is the source of
+  truth for which event is live and has no concept of a demo, so without this
+  the first judge to open a page would sync, the API would say the real event
+  is active, and the demo would be deactivated underneath everyone -- its data
+  orphaned and unreachable from the admin page. The real event is still
+  recorded and tracked as the restore target, so ending the demo returns to
+  whatever the API considers current *then*, not when the demo began.
+- **Demos expire.** A forgotten demo is worse than none: judging stays pointed
+  at the throwaway tenant, so real votes land in it and are deleted when
+  someone finally ends it. Demos self-terminate after
+  `DEMO_DURATION_MINUTES` (default 240), checked on page loads alongside the
+  project-freshness check -- no scheduler. The admin page shows the countdown
+  and can extend it.
+
+Demo tenants are id'd `demo:<real-hackathon-id>`, so it is always visible which
+event a demo shadows. The colon cannot collide with an API id.
