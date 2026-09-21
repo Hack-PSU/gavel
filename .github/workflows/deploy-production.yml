@@ -1,0 +1,80 @@
+# Deploy Gavel to Cloud Run.
+#
+# Split from the master build on purpose: merging to master publishes an image,
+# but only pushing to `production` puts it in front of judges. Judging is
+# time-critical and master takes dependency bumps, so "every merge goes live"
+# is the wrong default here.
+#
+# Promote with:  git push origin master:production
+name: Deploy Production
+
+on:
+  push:
+    branches:
+      - production
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    name: Deploy to Cloud Run
+    runs-on: ubuntu-latest
+    env:
+      REGION: us-east4
+      SERVICE: gavel-production
+      # Tagged by commit, never :latest, so a running revision can always be
+      # traced back to the source it was built from.
+      IMAGE: us-east4-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/gavel/image:${{ github.sha }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v3
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: Configure GCloud
+        uses: google-github-actions/setup-gcloud@v3
+        with:
+          project_id: ${{ secrets.GCP_PROJECT_ID }}
+
+      - name: Configure Docker to use Artifact Registry
+        run: gcloud auth configure-docker ${{ env.REGION }}-docker.pkg.dev --quiet
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile.prod
+          push: true
+          tags: ${{ env.IMAGE }}
+
+      - name: Deploy Cloud Run service
+        run: |-
+          gcloud run deploy "$SERVICE" \
+            --region "$REGION" \
+            --image "$IMAGE" \
+            --platform managed \
+            --quiet
+
+      - name: Verify the new revision is serving
+        run: |-
+          URL=$(gcloud run services describe "$SERVICE" --region "$REGION" \
+                  --format 'value(status.url)')
+          echo "Deployed to $URL"
+          # The health endpoint reports database reachability, so this catches
+          # a revision that starts but cannot reach Cloud SQL.
+          for i in $(seq 1 10); do
+            BODY=$(curl -fsS --max-time 15 "$URL/health" || true)
+            echo "  attempt $i: ${BODY:-no response}"
+            case "$BODY" in
+              *'"database":"ok"'*) echo "Healthy."; exit 0 ;;
+            esac
+            sleep 6
+          done
+          echo "New revision did not report a healthy database." >&2
+          exit 1

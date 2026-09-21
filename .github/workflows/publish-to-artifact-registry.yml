@@ -1,4 +1,8 @@
 # .github/workflows/publish-to-artifact-registry.yml
+#
+# Builds master and publishes the image. It does NOT deploy -- pushing to the
+# `production` branch does that, via deploy-production.yml. Promote with:
+#     git push origin master:production
 name: Build & Push to Google Artifact Registry
 
 on:

@@ -3,10 +3,36 @@
 The database is external (Cloud SQL MySQL), so the container is a single
 gunicorn process serving on `$PORT`. It holds no state.
 
-## Build and push
+## Build, then promote
 
-`.github/workflows/publish-to-artifact-registry.yml` builds `Dockerfile.prod`
-and pushes to Artifact Registry on every push to `master`. To build by hand:
+Two workflows, deliberately separate:
+
+| Branch | Workflow | Effect |
+|---|---|---|
+| `master` | `publish-to-artifact-registry.yml` | builds and publishes the image |
+| `production` | `deploy-production.yml` | builds, publishes **and deploys** |
+
+Merging to master does not put anything in front of judges. Promote when ready:
+
+```sh
+git push origin master:production
+```
+
+Judging is time-critical and master takes dependency bumps, so "every merge
+goes live" is the wrong default. This mirrors how apiv3 separates its
+`production` branch from `main`.
+
+The deploy tags images by commit SHA rather than `:latest`, so a running
+revision always traces back to its source, and it gates on `/health` reporting
+`database: ok` -- a revision that starts but cannot reach Cloud SQL fails the
+workflow instead of quietly serving errors.
+
+CI authenticates as `gavel-github-action@`, which holds only
+`artifactregistry.writer` on the gavel repository, `run.developer`, and
+`serviceAccountUser` on `gavel-cloud-run@` so it can deploy as the runtime
+identity.
+
+To build by hand:
 
 ```sh
 docker build -f Dockerfile.prod -t gavel .
