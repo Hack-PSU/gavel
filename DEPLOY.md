@@ -83,12 +83,30 @@ an app whose work is database round trips.
 
 ## Schema changes
 
-Never applied on startup. Run them deliberately, against the same image:
+Never applied on startup, and never by CI -- run them deliberately:
 
 ```sh
 docker run --rm -e DATABASE_URL="$DATABASE_URL" \
   us-east4-docker.pkg.dev/hackpsu-408118/gavel/image:latest \
   python migrate.py status
+```
+
+**Migrate before promoting.** Because migrations are manual, a deploy can ship
+code that expects a column nobody has created. The deploy guards against that
+rather than trusting anyone to remember:
+
+1. the new revision is deployed with `--no-traffic`, so it serves nobody yet;
+2. its `/health` is checked on a tagged URL -- the endpoint reports both
+   database reachability and whether any migration is unapplied;
+3. traffic only moves if both are clean.
+
+A build whose schema is behind fails the workflow with the command to run, and
+the previous revision keeps serving. Order of operations for a release that
+includes a migration:
+
+```sh
+python migrate.py upgrade --database-url "$DATABASE_URL"   # first
+git push origin master:production                          # then
 ```
 
 See `MIGRATION.md`.

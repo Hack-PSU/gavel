@@ -53,28 +53,59 @@ jobs:
           push: true
           tags: ${{ env.IMAGE }}
 
-      - name: Deploy Cloud Run service
+      # Deployed without traffic first. Cloud Run otherwise routes to the new
+      # revision immediately, so a broken build is already serving judges by
+      # the time any check notices.
+      - name: Deploy new revision (no traffic yet)
         run: |-
           gcloud run deploy "$SERVICE" \
             --region "$REGION" \
             --image "$IMAGE" \
             --platform managed \
+            --no-traffic \
+            --tag candidate \
             --quiet
 
-      - name: Verify the new revision is serving
+      - name: Check the candidate before sending it traffic
         run: |-
-          URL=$(gcloud run services describe "$SERVICE" --region "$REGION" \
-                  --format 'value(status.url)')
-          echo "Deployed to $URL"
-          # The health endpoint reports database reachability, so this catches
-          # a revision that starts but cannot reach Cloud SQL.
+          CANDIDATE=$(gcloud run services describe "$SERVICE" --region "$REGION" \
+            --format 'value(status.traffic.filter("tag:candidate").extract("url"))' \
+            | tr -d "[]'")
+          echo "Candidate: $CANDIDATE"
+
           for i in $(seq 1 10); do
-            BODY=$(curl -fsS --max-time 15 "$URL/health" || true)
+            BODY=$(curl -fsS --max-time 15 "$CANDIDATE/health" || true)
             echo "  attempt $i: ${BODY:-no response}"
             case "$BODY" in
-              *'"database":"ok"'*) echo "Healthy."; exit 0 ;;
+              *'"database":"ok"'*'"migrations":"ok"'*)
+                echo "Candidate is healthy and the schema is up to date."
+                exit 0 ;;
+              *'"migrations":"'*pending*)
+                # Migrations are applied by hand, on purpose. Shipping code
+                # that needs one nobody ran would break judging, so stop here
+                # and leave the current revision serving.
+                echo "::error::Schema is behind this build. Run:" >&2
+                echo "::error::  python migrate.py upgrade --database-url <cloud-sql>" >&2
+                echo "$BODY" >&2
+                exit 1 ;;
             esac
             sleep 6
           done
-          echo "New revision did not report a healthy database." >&2
+          echo "::error::Candidate never became healthy; traffic not moved." >&2
           exit 1
+
+      - name: Send traffic to the new revision
+        run: |-
+          gcloud run services update-traffic "$SERVICE" \
+            --region "$REGION" --to-latest --quiet
+          URL=$(gcloud run services describe "$SERVICE" --region "$REGION" \
+                  --format 'value(status.url)')
+          echo "Live: $URL"
+          curl -fsS --max-time 15 "$URL/health"
+
+      # Leave no lingering tagged URL pointing at the revision.
+      - name: Remove the candidate tag
+        if: always()
+        run: |-
+          gcloud run services update-traffic "$SERVICE" \
+            --region "$REGION" --remove-tags candidate --quiet || true

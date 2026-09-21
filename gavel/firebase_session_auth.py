@@ -297,9 +297,31 @@ def check_admin_permission(user_data):
 
 
 def _login_redirect():
+    """
+    Send the user to the auth server, asking to be returned here.
+
+    returnTo is built from GAVEL_URL rather than request.url. Cloud Run serves
+    a service on two hostnames -- the canonical
+    <service>-<project-number>.<region>.run.app and a legacy
+    <service>-<hash>.a.run.app -- and the auth server's allowlist can only
+    recognise the first, because the legacy form carries a random hash instead
+    of the project number. A judge who arrived on the legacy hostname would
+    otherwise hand the auth server a returnTo it rejects, and be bounced to
+    hackpsu.org instead of back here.
+
+    Pinning the canonical origin also means a custom domain keeps working the
+    moment GAVEL_URL points at it.
+    """
     auth_login_url = os.environ.get(
         'AUTH_LOGIN_URL', 'http://localhost:3000/login')
-    return redirect('%s?returnTo=%s' % (auth_login_url, request.url))
+
+    canonical = os.environ.get('GAVEL_URL')
+    if canonical:
+        return_to = canonical.rstrip('/') + request.full_path.rstrip('?')
+    else:
+        return_to = request.url
+
+    return redirect('%s?returnTo=%s' % (auth_login_url, return_to))
 
 
 def _no_hackathon_error():

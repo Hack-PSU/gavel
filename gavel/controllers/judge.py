@@ -45,15 +45,50 @@ def health():
     restart loop that makes recovery slower.
     """
     database = 'ok'
+    migrations = 'unknown'
     try:
         db.session.execute(text('SELECT 1'))
+        migrations = _pending_migrations()
     except Exception as e:
         database = 'error: %s' % type(e).__name__
         app.logger.warning('health check could not reach the database: %s', e)
     finally:
         db.session.remove()
 
-    return {'status': 'ok', 'service': 'gavel', 'database': database}, 200
+    return {
+        'status': 'ok',
+        'service': 'gavel',
+        'database': database,
+        'migrations': migrations,
+    }, 200
+
+
+def _pending_migrations():
+    """
+    Whether the schema is up to date with this build.
+
+    Migrations are applied by hand, never on startup, so a deploy can ship code
+    that expects a column nobody has created yet. Surfacing it here lets the
+    deploy refuse to send traffic to such a revision instead of discovering it
+    when a judge tries to vote.
+    """
+    try:
+        import migrate
+    except ImportError:
+        return 'unknown'
+
+    try:
+        applied = {
+            row[0] for row in db.session.execute(
+                text('SELECT name FROM %s' % migrate.LEDGER_TABLE)).fetchall()
+        }
+    except Exception:
+        # No ledger yet: the database has never been migrated.
+        return '%d pending' % len(migrate.MIGRATIONS)
+
+    pending = [name for name, _fn in migrate.MIGRATIONS if name not in applied]
+    return 'ok' if not pending else '%d pending: %s' % (
+        len(pending), ', '.join(pending))
 
 @app.route('/')
 @hackpsu_auth_required
