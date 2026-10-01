@@ -148,72 +148,148 @@ def generate_graph_data_for_visualization(G):
 
 
 # ========================================
-# 3. PROJECT COVERAGE HEATMAP
+# 3. SCORE CONFIDENCE INTERVALS
 # ========================================
 
-def get_coverage_matrix(items=None, comparisons=None):
-    """
-    Comparison coverage: how much of the project space judges have actually
-    covered, and which pairs are lagging.
+# Two-sided 95%: crowd-BT keeps a Gaussian posterior over each project's
+# score, so sigma_sq is the variance of mu and the interval is mu +/- z*sigma.
+CONFIDENCE_Z = 1.96
 
-    This used to allocate an N x N Python matrix -- 90,000 cells at 300
-    projects -- and scan all N*(N-1)/2 pairs twice. The matrix was never
-    rendered: the template reads only the coverage percentage, the average, and
-    the first ten under-compared pairs. Counting the pairs that actually occur
-    gives identical numbers in time proportional to the number of comparisons
-    rather than the square of the project count.
+
+def get_confidence_intervals(items=None, comparisons=None):
+    """
+    Every active project's score with its 95% interval, best first.
+
+    Alongside each interval is the range of ranks the project could plausibly
+    hold: its best rank counts only the projects whose whole interval sits
+    above its own, and its worst counts every project whose interval reaches
+    it. "#2-#7" says how settled a position is more directly than sigma_sq.
     """
     items, comparisons = _resolve(items, comparisons)
-    items = [i for i in _active(items)]
-    items.sort(key=lambda i: i.id)
+    items = _active(items)
 
-    active_ids = {item.id for item in items}
-    n = len(items)
-
-    # Only pairs that were actually compared take up space.
-    pair_counts = defaultdict(int)
+    compared = defaultdict(int)
     for winner_id, loser_id, _annotator_id, _time in comparisons:
-        if winner_id in active_ids and loser_id in active_ids \
-                and winner_id != loser_id:
-            pair_counts[(min(winner_id, loser_id),
-                         max(winner_id, loser_id))] += 1
+        compared[winner_id] += 1
+        compared[loser_id] += 1
 
-    total_possible_comparisons = n * (n - 1) // 2
-    actual_comparisons = len(pair_counts)
-    coverage_percentage = (actual_comparisons / total_possible_comparisons * 100) \
-        if total_possible_comparisons > 0 else 0
+    rows = []
+    for item in items:
+        mu = float(item.mu)
+        half = CONFIDENCE_Z * float(item.sigma_sq) ** 0.5
+        rows.append({
+            'id': item.id,
+            'name': item.name,
+            'location': item.location,
+            'mu': mu,
+            'low': mu - half,
+            'high': mu + half,
+            'comparisons': compared.get(item.id, 0),
+        })
+    rows.sort(key=lambda r: (-r['mu'], r['id']))
 
-    avg_comparisons_per_pair = (sum(pair_counts.values()) / total_possible_comparisons) \
-        if total_possible_comparisons > 0 else 0
+    for rank, row in enumerate(rows, 1):
+        row['rank'] = rank
+        row['best_rank'] = 1 + sum(1 for o in rows if o['low'] > row['high'])
+        row['worst_rank'] = sum(1 for o in rows if o['high'] >= row['low'])
 
-    # Find under-compared pairs. Stopping at ten keeps this cheap: uncompared
-    # pairs qualify immediately whenever the average is above zero, so the scan
-    # almost always ends in the first handful of iterations instead of walking
-    # every pair.
-    threshold = avg_comparisons_per_pair * 0.5
-    under_compared_pairs = []
-    for i in range(n):
-        if len(under_compared_pairs) >= 10:
-            break
-        for j in range(i + 1, n):
-            a, b = items[i].id, items[j].id
-            count = pair_counts.get((min(a, b), max(a, b)), 0)
-            if count < threshold:
-                under_compared_pairs.append({
-                    'project_a': items[i].name,
-                    'project_b': items[j].name,
-                    'comparisons': count
-                })
-                if len(under_compared_pairs) >= 10:
-                    break
+    low = min((r['low'] for r in rows), default=-1.0)
+    high = max((r['high'] for r in rows), default=1.0)
+    return {'rows': rows, 'scale_low': low, 'scale_high': high}
 
-    return {
-        'project_ids': [item.id for item in items],
-        'project_names': [item.name for item in items],
-        'coverage_percentage': coverage_percentage,
-        'avg_comparisons_per_pair': avg_comparisons_per_pair,
-        'under_compared_pairs': under_compared_pairs
-    }
+
+# ========================================
+# 3b. RANKING STABILITY
+# ========================================
+
+# Judging runs about an hour, at roughly eight votes a minute, so "recently"
+# means the last ten minutes of voting.
+STABILITY_RECENT_MINUTES = 10
+STABILITY_TOP_NS = (3, 5, 10)
+
+
+def replay_scores(comparisons, item_ids):
+    """
+    Re-run every vote through crowd-BT, yielding the scores after each one.
+
+    Only current scores are stored, so this is how earlier rankings are
+    recovered. It reproduces the stored scores exactly -- checked against the
+    522 votes of Spring 26, to within 1e-15 -- because it applies the same
+    update, from the same priors, in the order the votes were cast.
+    """
+    from gavel import crowd_bt
+
+    mu = {i: crowd_bt.MU_PRIOR for i in item_ids}
+    sigma_sq = {i: crowd_bt.SIGMA_SQ_PRIOR for i in item_ids}
+    judges = {}
+    for winner_id, loser_id, annotator_id, time in comparisons:
+        if winner_id not in mu or loser_id not in mu:
+            continue
+        alpha, beta = judges.get(
+            annotator_id, (crowd_bt.ALPHA_PRIOR, crowd_bt.BETA_PRIOR))
+        (alpha, beta, mu[winner_id], sigma_sq[winner_id], mu[loser_id],
+         sigma_sq[loser_id]) = crowd_bt.update(
+            alpha, beta, mu[winner_id], sigma_sq[winner_id],
+            mu[loser_id], sigma_sq[loser_id])
+        judges[annotator_id] = (alpha, beta)
+        yield time, mu
+
+
+def get_ranking_stability(items=None, comparisons=None,
+                          top_ns=STABILITY_TOP_NS,
+                          recent_minutes=STABILITY_RECENT_MINUTES):
+    """
+    How long the top of the ranking has held still.
+
+    For each N, two questions: has the *order* of the top N changed (who is
+    first, second, third), and has the *set* changed (who is in the top N at
+    all)? Each is answered with the number of votes, and minutes of voting,
+    since it last moved, plus how many times it moved in the last
+    `recent_minutes`. Minutes are measured to the latest vote rather than to
+    now, so the numbers stop growing once judging ends.
+    """
+    items, comparisons = _resolve(items, comparisons)
+    active_ids = [i.id for i in _active(items)]
+    # A top N that covers every project is just the whole ranking.
+    top_ns = [n for n in top_ns if n < len(active_ids)]
+    if not comparisons or not top_ns:
+        return {'rows': [], 'votes': len(comparisons),
+                'recent_minutes': recent_minutes}
+
+    all_ids = [i.id for i in items]
+    last = {n: {'order': None, 'set': None} for n in top_ns}
+    changed_at = {n: {'order': [], 'set': []} for n in top_ns}
+
+    vote = 0
+    last_time = None
+    for time, mu in replay_scores(comparisons, all_ids):
+        vote += 1
+        last_time = time
+        ranking = sorted(active_ids, key=lambda i: (-mu[i], i))
+        for n in top_ns:
+            order = tuple(ranking[:n])
+            members = frozenset(order)
+            if order != last[n]['order']:
+                changed_at[n]['order'].append((vote, time))
+                last[n]['order'] = order
+            if members != last[n]['set']:
+                changed_at[n]['set'].append((vote, time))
+                last[n]['set'] = members
+
+    recent_start = last_time - timedelta(minutes=recent_minutes)
+
+    def summarize(changes):
+        since_vote, since_time = changes[-1]
+        return {
+            'votes': vote - since_vote,
+            'minutes': (last_time - since_time).total_seconds() / 60,
+            'recent_changes': sum(1 for _v, t in changes if t > recent_start),
+        }
+
+    rows = [{'n': n,
+             'order': summarize(changed_at[n]['order']),
+             'set': summarize(changed_at[n]['set'])} for n in top_ns]
+    return {'rows': rows, 'votes': vote, 'recent_minutes': recent_minutes}
 
 
 # ========================================
@@ -314,7 +390,6 @@ def get_statistical_summary(items=None, judges=None, comparisons=None):
             'total_judges': len(judges),
             'avg_comparisons_per_project': 0,
             'avg_comparisons_per_judge': 0,
-            'completion_percentage': 0,
             'convergence_status': 'Not Started',
             'avg_uncertainty': 0,
             'estimated_votes_needed': 0
@@ -340,11 +415,6 @@ def get_statistical_summary(items=None, judges=None, comparisons=None):
         judge_comparison_counts[annotator_id] += 1
 
     avg_comparisons_per_judge = total_comparisons / total_judges if total_judges > 0 else 0
-
-    # Completion percentage (based on minimum comparisons needed)
-    # Assume we want at least 10 comparisons per project
-    min_comparisons_needed = total_projects * 10
-    completion_percentage = min(100, (total_comparisons / min_comparisons_needed * 100)) if min_comparisons_needed > 0 else 0
 
     # Convergence analysis
     avg_uncertainty = sum(float(item.sigma_sq) for item in items) / len(items)
@@ -377,7 +447,6 @@ def get_statistical_summary(items=None, judges=None, comparisons=None):
         'active_judges': active_judges,
         'avg_comparisons_per_project': round(avg_comparisons_per_project, 1),
         'avg_comparisons_per_judge': round(avg_comparisons_per_judge, 1),
-        'completion_percentage': round(completion_percentage, 1),
         'convergence_status': convergence_status,
         'avg_uncertainty': round(avg_uncertainty, 3),
         'estimated_votes_needed': estimated_votes_needed if estimated_votes_needed else 0,

@@ -67,8 +67,10 @@ def admin():
     graph_data = analytics.generate_graph_data_for_visualization(G)
 
     # New analytics data
-    coverage_matrix = analytics.get_coverage_matrix(items, comparisons)
-    voting_timeline = analytics.get_voting_timeline(hours=2, comparisons=comparisons)
+    confidence = analytics.get_confidence_intervals(items, comparisons)
+    stability = analytics.get_ranking_stability(items, comparisons)
+    # Judging runs about an hour, so the last hour is the whole event.
+    voting_timeline = analytics.get_voting_timeline(hours=1, comparisons=comparisons)
     statistical_summary = analytics.get_statistical_summary(
         items, annotators, comparisons)
 
@@ -88,7 +90,8 @@ def admin():
         votes=len(comparisons),
         setting_closed=setting_closed,
         graph_data=graph_data,
-        coverage_matrix=coverage_matrix,
+        confidence=confidence,
+        stability=stability,
         voting_timeline=voting_timeline,
         statistical_summary=statistical_summary,
     )

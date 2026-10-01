@@ -58,6 +58,83 @@ table {
     padding: 0.5rem;
   }
 }
+
+/* Ranking stability and score confidence */
+.analytics-note {
+  color: #555;
+  font-size: 0.9rem;
+  max-width: 60rem;
+}
+.muted {
+  color: #777;
+}
+.ci-chart {
+  font-size: 0.9rem;
+}
+.ci-row {
+  display: grid;
+  grid-template-columns: 2.5rem minmax(7rem, 14rem) minmax(8rem, 1fr) 6rem 3.5rem;
+  gap: 0.75rem;
+  align-items: center;
+  padding: 0.2rem 0;
+  border-bottom: 1px solid #f0f0f0;
+}
+.ci-head {
+  font-weight: bold;
+  border-bottom: 2px solid #e4e4e4;
+}
+.ci-rank, .ci-votes {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.ci-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ci-track {
+  position: relative;
+  height: 1rem;
+}
+.ci-zero {
+  position: absolute;
+  top: -0.2rem;
+  bottom: -0.2rem;
+  border-left: 1px dashed #bbb;
+}
+.ci-bar {
+  position: absolute;
+  top: 0.3rem;
+  height: 0.4rem;
+  border-radius: 0.2rem;
+  background: #4ecdc4;
+  opacity: 0.55;
+}
+.ci-dot {
+  position: absolute;
+  top: 0.15rem;
+  width: 0.7rem;
+  height: 0.7rem;
+  margin-left: -0.35rem;
+  border-radius: 50%;
+  background: #0b3b4b;
+}
+.ci-ranks {
+  font-variant-numeric: tabular-nums;
+  color: #555;
+}
+.ci-ranks.settled {
+  color: #0b3b4b;
+  font-weight: bold;
+}
+@media (max-width: 768px) {
+  .ci-row {
+    grid-template-columns: 2rem minmax(5rem, 8rem) minmax(5rem, 1fr) 4.5rem;
+  }
+  .ci-votes {
+    display: none;
+  }
+}
 </style>
 {% endblock %}
 {% block content %}
@@ -115,9 +192,7 @@ table {
     it touches the real event. Ending the demo <strong>permanently deletes</strong>
     every project, judge, vote and note it produced, and reactivates the event
     that was running before.</p>
-    <p><strong>Ends automatically in {{ demo_minutes_left }} minute(s)</strong>
-    &mdash; a demo left running would collect real votes once judging starts,
-    and those would be deleted with it.</p>
+    <p><strong>Ends automatically in {{ demo_minutes_left }} minute(s)</strong></p>
     <form action="{{ url_for('demo') }}" method="post">
       <input type="submit" name="action" value="Extend Demo" class="button-full neutral">
       <input type="hidden" name="minutes" value="60">
@@ -148,11 +223,8 @@ table {
     <p><strong>Total Comparisons:</strong> {{ statistical_summary.total_comparisons }}</p>
     <p><strong>Active Judges:</strong> {{ statistical_summary.active_judges }} of {{ statistical_summary.total_judges }} total</p>
     <p><strong>Avg Comparisons/Project:</strong> {{ statistical_summary.avg_comparisons_per_project }}</p>
-    <p><strong>Completion:</strong> {{ statistical_summary.completion_percentage }}%</p>
     <p><strong>Convergence Status:</strong> {{ statistical_summary.convergence_status }} (Avg σ²: {{ statistical_summary.avg_uncertainty }})</p>
     <p><strong>Estimated Votes Needed:</strong> {{ statistical_summary.estimated_votes_needed }} to converge</p>
-    <p><strong>Coverage:</strong> {{ coverage_matrix.coverage_percentage | round(1) }}% of possible pairs compared</p>
-    <p><strong>Avg Comparisons per Pair:</strong> {{ coverage_matrix.avg_comparisons_per_pair | round(1) }}</p>
     <p><strong>Votes Last Minute:</strong> {{ voting_timeline.votes_last_minute }}</p>
     <p><strong>Peak Activity:</strong> {{ voting_timeline.peak_time or 'N/A' }}</p>
     <p><strong>Avg Votes/Minute:</strong> {{ voting_timeline.avg_votes_per_minute | round(2) }}</p>
@@ -164,22 +236,90 @@ table {
       {% endfor %}
     </ul>
     {% endif %}
-    {% if coverage_matrix.under_compared_pairs %}
-    <details>
-      <summary style="cursor: pointer; font-weight: bold; color: #dc3545;">Under-Compared Project Pairs</summary>
-      <ul style="margin-top: 10px;">
-        {% for pair in coverage_matrix.under_compared_pairs %}
-        <li>{{ pair.project_a }} ↔ {{ pair.project_b }} ({{ pair.comparisons }} comparisons)</li>
+  </div>
+</div>
+
+<div class="item">
+  <div class="banner">
+    <h2>Ranking Stability</h2>
+  </div>
+  <div class="info">
+    {% if stability.rows %}
+    <p class="analytics-note">How long the top of the ranking has held still, replayed from all
+    {{ stability.votes }} votes. <strong>Order</strong> is who is 1st, 2nd, 3rd&hellip;;
+    <strong>projects</strong> is who is in the top N at all. Times are minutes of voting, so
+    they stop growing once judging ends.</p>
+    <table class="header-row stability">
+      <thead>
+        <tr>
+          <th></th>
+          <th>Order unchanged for</th>
+          <th>Same projects for</th>
+          <th>Changes, last {{ stability.recent_minutes }} min</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in stability.rows %}
+        <tr>
+          <th>Top {{ row.n }}</th>
+          {% for kind in ('order', 'set') %}
+          {% set held = row[kind] %}
+          <td>{{ held.votes }} vote{{ '' if held.votes == 1 else 's' }}
+            <span class="muted">({{ '&lt;1' | safe if held.minutes < 1 else held.minutes | round | int }} min)</span></td>
+          {% endfor %}
+          <td>{{ row.order.recent_changes }} in order, {{ row.set.recent_changes }} in projects</td>
+        </tr>
         {% endfor %}
-      </ul>
-    </details>
+      </tbody>
+    </table>
+    {% else %}
+    <p class="analytics-note">Appears once judges have voted{% if items | length < 4 %} and there
+    are more than three projects{% endif %}.</p>
     {% endif %}
   </div>
 </div>
 
 <div class="item">
   <div class="banner">
-    <h2>Voting Activity Timeline (15s intervals, Last 2 Hours)</h2>
+    <h2>Score Confidence (95%)</h2>
+  </div>
+  <div class="info">
+    {% if confidence.rows %}
+    <p class="analytics-note">Each bar is the range a project's true score lies in with 95%
+    confidence; the dot is its current score. Overlapping bars can't yet be told apart, so
+    <strong>Could rank</strong> gives every position the project could plausibly hold. Bars
+    shrink as a project is compared more.</p>
+    {% set lo = confidence.scale_low %}
+    {% set span = (confidence.scale_high - confidence.scale_low) or 1 %}
+    <div class="ci-chart">
+      <div class="ci-row ci-head">
+        <span>#</span><span>Project</span><span></span><span>Could rank</span><span>Votes</span>
+      </div>
+      {% for row in confidence.rows %}
+      <div class="ci-row" title="{{ row.name }}: score {{ row.mu | round(3) }}, 95% range {{ row.low | round(3) }} to {{ row.high | round(3) }}">
+        <span class="ci-rank">{{ row.rank }}</span>
+        <span class="ci-name"><a href="{{ url_for('item_detail', item_id=row.id) }}" class="colored">{{ row.name }}</a></span>
+        <span class="ci-track">
+          {% if lo < 0 < confidence.scale_high %}<span class="ci-zero" style="left: {{ (0 - lo) / span * 100 }}%"></span>{% endif %}
+          <span class="ci-bar" style="left: {{ (row.low - lo) / span * 100 }}%; width: {{ (row.high - row.low) / span * 100 }}%"></span>
+          <span class="ci-dot" style="left: {{ (row.mu - lo) / span * 100 }}%"></span>
+        </span>
+        <span class="ci-ranks{% if row.best_rank == row.worst_rank %} settled{% endif %}">
+          {% if row.best_rank == row.worst_rank %}#{{ row.best_rank }}{% else %}#{{ row.best_rank }}&ndash;{{ row.worst_rank }}{% endif %}
+        </span>
+        <span class="ci-votes">{{ row.comparisons }}</span>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <p class="analytics-note">No active projects yet.</p>
+    {% endif %}
+  </div>
+</div>
+
+<div class="item">
+  <div class="banner">
+    <h2>Voting Activity Timeline (15s intervals, Last 60 Minutes)</h2>
   </div>
   <div class="info">
     <div style="width: 100%; height: 400px;">
