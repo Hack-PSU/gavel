@@ -542,6 +542,35 @@ def demo_hackathons(conn, log, opts):
                    'BOOLEAN NOT NULL DEFAULT FALSE', log)
 
 
+def item_lookup_index(conn, log, opts):
+    """
+    Make sure project lookups by (hackathon, name) use an index.
+
+    0004 adds a unique index for this, but skips it -- with only a warning --
+    when duplicate project names already exist, which leaves item with no
+    index on the columns the project sync reads. Under SERIALIZABLE, MySQL
+    share-locks every row a query scans, so an unindexed lookup locks the
+    whole table and deadlocks against judges' votes, which write to item.
+    A plain index fixes the locking even where duplicates rule out the
+    unique one.
+    """
+    if not _table_exists(conn, 'item'):
+        return
+    if _index_exists(conn, 'ix_item_name_hackathon', 'item') or \
+            _index_exists(conn, 'ix_item_hackathon_name', 'item'):
+        return
+    if _is_mysql(conn):
+        # Same 191-character prefix as 0004: item.name is unbounded text.
+        conn.execute(text('CREATE INDEX ix_item_hackathon_name '
+                          'ON item (hackathon_id, `name`(191))'))
+    else:
+        conn.execute(text('CREATE INDEX ix_item_hackathon_name '
+                          'ON item (hackathon_id, name)'))
+    log('added index on item (hackathon_id, name); the unique index from '
+        '0004 is still missing -- deduplicate projects and re-run 0004 to '
+        'get it')
+
+
 
 # Ordered. Append new steps; never renumber or reorder existing ones.
 MIGRATIONS = [
@@ -550,6 +579,7 @@ MIGRATIONS = [
     ('0003_adopt_existing_data', adopt_existing_data),
     ('0004_tenancy_constraints', tenancy_constraints),
     ('0005_demo_hackathons', demo_hackathons),
+    ('0006_item_lookup_index', item_lookup_index),
 ]
 
 

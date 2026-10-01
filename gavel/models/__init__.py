@@ -3,13 +3,10 @@ from flask_sqlalchemy import SQLAlchemy
 import sqlalchemy.exc
 import time
 
-class SerializableAlchemy(SQLAlchemy):
-    def apply_driver_hacks(self, app, info, options):
-        if not 'isolation_level' in options:
-            # XXX is this slow? are there better ways?
-            options['isolation_level'] = 'SERIALIZABLE'
-        return super(SerializableAlchemy, self).apply_driver_hacks(app, info, options)
-db = SerializableAlchemy()
+# Every transaction runs SERIALIZABLE. The isolation level is set through
+# SQLALCHEMY_ENGINE_OPTIONS in gavel/__init__.py; Flask-SQLAlchemy 3 removed
+# the apply_driver_hacks hook this used to be injected from.
+db = SQLAlchemy()
 
 from gavel.models.types import UnboundedText
 

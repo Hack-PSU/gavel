@@ -289,8 +289,10 @@ def setting():
     if key == 'closed':
         action = request.form['action']
         new_value = SETTING_TRUE if action == 'Close' else SETTING_FALSE
-        Setting.set(SETTING_CLOSED, new_value)
-        db.session.commit()
+        def tx():
+            Setting.set(SETTING_CLOSED, new_value)
+            db.session.commit()
+        with_retries(tx)
     return redirect(url_for('admin'))
 
 @app.route('/admin/hackathon', methods=['POST'])
@@ -345,7 +347,11 @@ def demo():
             with_retries(tx)
         elif action == 'Extend Demo':
             minutes = int(request.form.get('minutes', 60))
-            remaining = gavel_demo.extend(minutes)
+            result = {}
+            def tx():
+                result['remaining'] = gavel_demo.extend(minutes)
+            with_retries(tx)
+            remaining = result['remaining']
             flash('Demo extended by %d minutes (%d minutes left)'
                   % (minutes, remaining // 60))
         elif action == 'End Demo':

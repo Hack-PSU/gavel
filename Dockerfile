@@ -1,14 +1,13 @@
-FROM python:3.9-slim
+FROM python:3.14-slim
 
 # Set working directory
 WORKDIR /app
 
 # Install system dependencies
-RUN apt-get update && apt-get install -y \
+# postgresql-client for psql against the compose database. psycopg2-binary
+# bundles libpq, so no compiler or headers.
+RUN apt-get update && apt-get install -y --no-install-recommends \
     postgresql-client \
-    gcc \
-    python3-dev \
-    libpq-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements first for better caching

@@ -28,13 +28,10 @@ you land back with a working session.
 
 ### The SCSS build
 
-`local/venv` uses **libsass**, not the pinned pyScss. pyScss 1.3.7 imports
-`collections.Iterable`, removed in Python 3.10, and 1.4.0 fails to parse this
-stylesheet's `mix()` calls. Production runs Python 3.9, so `SCSS_FILTER`
-defaults to `pyscss` and production is unchanged; `local/.env.dev` sets
-`SCSS_FILTER=libsass`. Note that having a broken pyScss *installed* also breaks
-webassets, which imports every filter module at startup -- so `local/venv` has
-it uninstalled rather than merely unused.
+The stylesheet compiles with **libsass**, in production and locally.
+pyScss, which it used to use, imports `collections.Iterable` (removed in Python
+3.10) and its 1.4.0 release fails to parse this stylesheet's `mix()` calls, so
+it was what held production on Python 3.9. It is no longer a dependency.
 
 The dumps in `local/backups/` are `chmod 444` and checksummed; the restore
 script verifies the digest and refuses to run if it does not match. Nothing

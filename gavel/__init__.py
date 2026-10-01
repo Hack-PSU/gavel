@@ -31,6 +31,9 @@ app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
     # Recycle well inside the server's wait_timeout so we close connections
     # before it does.
     'pool_recycle': settings.DB_POOL_RECYCLE,
+    # Gavel's vote and assignment logic assumes serializable transactions, and
+    # with_retries (gavel/models) is what absorbs the conflicts that causes.
+    'isolation_level': 'SERIALIZABLE',
 }
 
 if settings.PROXY:
@@ -57,13 +60,10 @@ CORS(app,
 
 from flask_assets import Environment, Bundle
 assets = Environment(app)
-assets.config['pyscss_style'] = 'expanded'
-# pyScss is pinned at 1.3.7, which imports collections.Iterable and so cannot
-# run on Python 3.10+; 1.4.0 runs but fails to parse this stylesheet's mix()
-# calls. Production is on Python 3.9 and unaffected, so it stays the default --
-# but a local checkout on a modern Python needs libsass, which compiles the
-# same source correctly.
-SCSS_FILTER = os.environ.get('SCSS_FILTER', 'pyscss')
+# libsass, not pyScss: pyScss 1.3.7 cannot run on Python 3.10+ and 1.4.0
+# fails to parse this stylesheet's mix() calls, which is what kept production
+# on Python 3.9.
+SCSS_FILTER = os.environ.get('SCSS_FILTER', 'libsass')
 assets.config['libsass_style'] = 'expanded'
 scss = Bundle(
     'css/style.scss',
@@ -79,7 +79,6 @@ celery = Celery(app.name, broker=app.config['CELERY_BROKER_URL'])
 celery.conf.update(app.config)
 
 from gavel.models import db
-db.app = app
 db.init_app(app)
 
 import gavel.template_filters # registers template filters

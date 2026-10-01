@@ -10,15 +10,13 @@
 # Run:    docker run -e PORT=8080 -e DATABASE_URL=... -p 8080:8080 gavel
 
 # ---------------------------------------------------------------- build stage
-FROM python:3.9-slim AS build
+FROM python:3.14-slim AS build
 
-# psycopg2 is pinned to a source distribution, so it needs a compiler and the
-# PostgreSQL client headers. Both stay in this stage; the runtime image gets
-# only the built packages.
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    gcc \
-    python3-dev \
-    libpq-dev \
+# A C++ compiler, for libsass: it publishes x86_64 Linux wheels but no ARM ones,
+# so building on Apple Silicon compiles it from source. It stays in this stage;
+# the runtime image gets only the built packages. Nothing else needs it --
+# psycopg2-binary bundles its own libpq.
+RUN apt-get update && apt-get install -y --no-install-recommends g++ \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
@@ -27,9 +25,9 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir --prefix=/install -r requirements.txt gunicorn
 
 # Compile the stylesheet at build time. Otherwise the first request to every
-# cold instance pays for it, and pyScss has to be installed at runtime.
+# cold instance pays for it.
 COPY . .
-ENV PYTHONPATH=/install/lib/python3.9/site-packages
+ENV PYTHONPATH=/install/lib/python3.14/site-packages
 RUN IGNORE_CONFIG_FILE=1 SECRET_KEY=build ADMIN_PASSWORD=build \
     DISABLE_EMAIL=true EMAIL_FROM=x EMAIL_USER=x EMAIL_PASSWORD=x \
     SEND_STATS=false ENABLE_PROJECT_SYNC=false \
@@ -37,13 +35,9 @@ RUN IGNORE_CONFIG_FILE=1 SECRET_KEY=build ADMIN_PASSWORD=build \
     && test -s gavel/static/all.css
 
 # -------------------------------------------------------------- runtime stage
-FROM python:3.9-slim
+FROM python:3.14-slim
 
-# libpq5 is the runtime half of libpq-dev, needed by psycopg2. No compiler, no
-# database server, no supervisor.
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    libpq5 \
-    && rm -rf /var/lib/apt/lists/*
+# No compiler, no database server, no supervisor -- and no system packages.
 
 # Cloud Run does not require a non-root user, but nothing here needs root.
 RUN useradd --create-home --shell /usr/sbin/nologin gavel

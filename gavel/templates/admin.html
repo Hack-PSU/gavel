@@ -119,12 +119,12 @@ table {
     &mdash; a demo left running would collect real votes once judging starts,
     and those would be deleted with it.</p>
     <form action="{{ url_for('demo') }}" method="post">
-      <input type="submit" name="action" value="Extend Demo" class="neutral">
+      <input type="submit" name="action" value="Extend Demo" class="button-full neutral">
       <input type="hidden" name="minutes" value="60">
       <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
     </form>
     <form action="{{ url_for('demo') }}" method="post">
-      <input type="submit" name="action" value="End Demo" class="button-full negative">
+      <input type="submit" name="action" value="End Demo" class="button-full button-gap negative">
       <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
     </form>
     {% else %}
