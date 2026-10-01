@@ -26,9 +26,11 @@ from functools import wraps
 
 from gavel.models import (
     Annotator,
+    IntegrityError,
     NoActiveHackathon,
     current_hackathon_id,
     db,
+    with_retries,
 )
 from gavel import app
 
@@ -418,33 +420,50 @@ def sync_annotator_from_auth_server(user_data):
     hackathon_id = current_hackathon_id()  # raises NoActiveHackathon
     min_role = int(os.environ.get('MIN_JUDGE_ROLE', MIN_JUDGE_ROLE))
 
-    # Scoped to the active hackathon: a judge from last year's event gets a
-    # fresh row, with fresh priors and no memory of which projects they saw.
-    annotator = Annotator.by_email(email, hackathon_id)
+    # This runs on every judge request, so a judge's page load and its XHRs
+    # race each other here -- and on a deploy every judge reloads at once.
+    # Under SERIALIZABLE, MySQL takes shared (and gap) locks on the lookup, so
+    # two of those racing to update or insert the same row is an InnoDB
+    # deadlock (1213). Retry it like any other transaction.
+    result = {}
 
-    if not annotator:
-        annotator = Annotator(
-            name=user_data.get('displayName') or email.split('@')[0],
-            email=email,
-            description=role_description,
-            hackathon_id=hackathon_id,
-        )
-        annotator.active = privilege >= min_role
-        db.session.add(annotator)
-    else:
-        # Only replace the stored name with something at least as good. The old
-        # code assigned unconditionally, so a judge whose real name had been
-        # recorded got overwritten with the email local-part on their next
-        # request if the API lookup happened to fail.
-        incoming = user_data.get('displayName')
-        if incoming and not (user_data.get('name_is_fallback') and
-                             annotator.name != incoming):
-            annotator.name = incoming
-        annotator.description = role_description
-        annotator.active = privilege >= min_role
-    db.session.commit()
+    def tx():
+        # Scoped to the active hackathon: a judge from last year's event gets a
+        # fresh row, with fresh priors and no memory of which projects they saw.
+        annotator = Annotator.by_email(email, hackathon_id)
 
-    return annotator
+        if not annotator:
+            annotator = Annotator(
+                name=user_data.get('displayName') or email.split('@')[0],
+                email=email,
+                description=role_description,
+                hackathon_id=hackathon_id,
+            )
+            annotator.active = privilege >= min_role
+            db.session.add(annotator)
+        else:
+            # Only replace the stored name with something at least as good. The old
+            # code assigned unconditionally, so a judge whose real name had been
+            # recorded got overwritten with the email local-part on their next
+            # request if the API lookup happened to fail.
+            incoming = user_data.get('displayName')
+            if incoming and not (user_data.get('name_is_fallback') and
+                                 annotator.name != incoming):
+                annotator.name = incoming
+            annotator.description = role_description
+            annotator.active = privilege >= min_role
+        db.session.commit()
+        result['annotator'] = annotator
+
+    try:
+        with_retries(tx)
+    except IntegrityError:
+        # A concurrent request inserted this judge's row between our lookup and
+        # our insert, and the (email, hackathon_id) index rejected ours. The
+        # row now exists, so a second pass finds and updates it.
+        with_retries(tx)
+
+    return result['annotator']
 
 
 @app.context_processor

@@ -7,7 +7,9 @@ import requests
 import os
 from urllib.parse import urljoin
 import time
+from contextlib import nullcontext
 
+from flask import has_app_context
 from sqlalchemy.exc import IntegrityError
 
 from gavel.constants import (
@@ -23,6 +25,20 @@ from gavel.models import (
     with_retries,
 )
 from gavel import app
+
+
+def _app_context():
+    """
+    An app context for the sync, reusing the caller's if there is one.
+
+    The sync runs both at import time (no context) and from a judge's page load
+    via maybe_sync_projects (inside a request). Flask-SQLAlchemy 2.x scopes its
+    session to the thread, not the app context, so a second context pushed in a
+    request shares the request's session -- and popping it runs Flask-
+    SQLAlchemy's teardown, which calls session.remove() on that session while
+    the request is still using it.
+    """
+    return nullcontext() if has_app_context() else app.app_context()
 
 HACKPSU_API_URL = os.environ.get('HACKPSU_API_URL', 'https://apiv3.hackpsu.org/judging/projects')
 CATEGORY_FILTER = os.environ.get('CATEGORY_FILTER')  # Optional category filter
@@ -68,7 +84,7 @@ def sync_active_hackathon():
     """
     if HACKATHON_ID_OVERRIDE:
         # Escape hatch for local development and for running a past event.
-        with app.app_context():
+        with _app_context():
             return _adopt_hackathon(HACKATHON_ID_OVERRIDE,
                                     'Hackathon %s' % HACKATHON_ID_OVERRIDE)
 
@@ -92,7 +108,7 @@ def sync_active_hackathon():
         print('[SYNC ERROR] No active hackathon in the API response')
         return None
 
-    with app.app_context():
+    with _app_context():
         return _adopt_hackathon(hackathon_id, data.get('name') or hackathon_id)
 
 def extract_table_number(name):
@@ -191,7 +207,7 @@ def sync_projects_from_api():
         projects = response.json()
         print(f"[SYNC] Fetched {len(projects)} projects from API")
 
-        with app.app_context():
+        with _app_context():
             synced_count = 0
             updated_count = 0
             filtered_count = 0
@@ -210,6 +226,16 @@ def sync_projects_from_api():
                 nonlocal synced_count, updated_count
                 synced_count = 0
                 updated_count = 0
+
+                # One read of this hackathon's projects, not one per project.
+                # item has no index on (name, hackathon_id), so each per-project
+                # lookup was a full scan -- and under SERIALIZABLE, MySQL takes
+                # a shared lock on every row a scan touches. A sync of N
+                # projects held those locks across N scans while judges' votes
+                # were updating the same rows, which deadlocked them (1213).
+                existing_by_name = {}
+                for item in Item.query.filter_by(hackathon_id=hackathon_id):
+                    existing_by_name.setdefault(item.name, item)
 
                 for project_data in projects_to_sync:
                     project_id = project_data.get('id')
@@ -231,8 +257,7 @@ def sync_projects_from_api():
 
                     # Scoped to this hackathon: a project with the same name
                     # at a previous event is a different project.
-                    existing = Item.query.filter_by(
-                        name=clean_name, hackathon_id=hackathon_id).first()
+                    existing = existing_by_name.get(clean_name)
 
                     if not existing:
                         item = Item(
@@ -243,6 +268,7 @@ def sync_projects_from_api():
                         )
                         item.active = True
                         db.session.add(item)
+                        existing_by_name[clean_name] = item
                         synced_count += 1
                         print(f"[SYNC] Created: {clean_name} at {location}")
                     else:
@@ -289,7 +315,7 @@ def _claim_sync_leadership():
     """
     global _sync_lock_conn
     try:
-        with app.app_context():
+        with _app_context():
             dialect = db.engine.dialect.name
             conn = db.engine.raw_connection()
             cursor = conn.cursor()
@@ -425,7 +451,7 @@ def setup_project_sync():
     import atexit
 
     # Ensure database tables exist before syncing
-    with app.app_context():
+    with _app_context():
         db.create_all()
 
     if not _claim_sync_leadership():
