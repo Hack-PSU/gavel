@@ -74,48 +74,6 @@ def build_comparison_graph(items=None, comparisons=None):
     return G
 
 
-def estimate_votes_to_convergence(target_avg_sigma_sq=0.1, items=None,
-                                  comparisons=None):
-    """
-    Estimate how many more votes needed for rankings to stabilize.
-    Uses historical rate of uncertainty reduction.
-    """
-    from gavel import crowd_bt
-
-    items, comparisons = _resolve(items, comparisons)
-    items = _active(items)
-    decisions = comparisons
-
-    if not items or not decisions:
-        return None
-
-    current_avg_sigma_sq = sum(float(item.sigma_sq) for item in items) / len(items)
-
-    if current_avg_sigma_sq <= target_avg_sigma_sq:
-        return 0
-
-    total_votes = len(decisions)
-    initial_sigma_sq = float(crowd_bt.SIGMA_SQ_PRIOR)
-
-    if total_votes == 0 or current_avg_sigma_sq >= initial_sigma_sq:
-        # Can't estimate, use pessimistic estimate
-        remaining = current_avg_sigma_sq - target_avg_sigma_sq
-        # Assume each vote reduces by 0.01 on average
-        return int(remaining / 0.01)
-
-    # Decay rate: sigma_sq(t) = sigma_sq(0) * exp(-k*t)
-    # k = ln(sigma_sq(0) / sigma_sq(t)) / t
-    decay_rate = np.log(initial_sigma_sq / current_avg_sigma_sq) / total_votes
-
-    # Solve for t when sigma_sq(t) = target
-    # t = ln(sigma_sq(0) / target) / k
-    votes_to_target = int(np.log(initial_sigma_sq / target_avg_sigma_sq) / decay_rate)
-
-    remaining_votes = max(0, votes_to_target - total_votes)
-
-    return remaining_votes
-
-
 def generate_graph_data_for_visualization(G):
     """
     Generate JSON-serializable data for D3.js force-directed graph.
@@ -293,6 +251,72 @@ def get_ranking_stability(items=None, comparisons=None,
 
 
 # ========================================
+# 3c. CONVERGENCE
+# ========================================
+
+# The top 3 is what gets announced, so convergence is judged on it.
+CONVERGENCE_TOP_N = 3
+# Held this long, in minutes and votes of voting, the top 3 counts as stable.
+# Sized for an hour of judging: Spring 26's top-3 order last moved with 25
+# minutes and 190 votes still to go.
+STABLE_MINUTES = 10
+STABLE_VOTES = 30
+
+
+def get_convergence(confidence, stability, min_comparisons=None):
+    """
+    Whether the ranking has settled, as a status and the reason for it.
+
+    This replaces a status read off the average sigma_sq, which falls with
+    every vote whether or not the ranking is settling: Spring 26 read
+    "Converged" from minute 35 while a top-3 project could still have ranked
+    anywhere in 49 of 69 places. The statuses below are about the top of the
+    ranking, which is what organizers announce:
+
+      Not Started  no votes
+      Collecting   some project has too few comparisons to place at all
+      Settling     the top 3 has moved recently
+      Stable       the top-3 order has held for STABLE_MINUTES and
+                   STABLE_VOTES of voting
+      Decided      the top 3 are statistically separated from everyone
+                   else: none of them could rank below third
+    """
+    import gavel.settings as settings
+
+    if min_comparisons is None:
+        min_comparisons = settings.MIN_VIEWS
+    rows = confidence['rows']
+    if not rows or not stability['votes']:
+        return {'status': 'Not Started', 'detail': 'No votes yet.'}
+
+    short = [r for r in rows if r['comparisons'] < min_comparisons]
+    if short:
+        return {'status': 'Collecting', 'detail': (
+            '%d of %d projects have fewer than %d comparisons.'
+            % (len(short), len(rows), min_comparisons))}
+
+    n = CONVERGENCE_TOP_N
+    top = rows[:n]
+    if len(rows) > n and all(r['worst_rank'] <= n for r in top):
+        return {'status': 'Decided', 'detail': (
+            'None of the top %d could rank lower than #%d.' % (n, n))}
+
+    held = next((r['order'] for r in stability['rows'] if r['n'] == n), None)
+    if held is None:
+        # Too few projects for a top 3 to mean anything.
+        return {'status': 'Settling', 'detail': 'Too few projects to rank a top %d.' % n}
+    minutes = int(held['minutes'])
+    if held['minutes'] >= STABLE_MINUTES and held['votes'] >= STABLE_VOTES:
+        return {'status': 'Stable', 'detail': (
+            'Top-%d order unchanged for %d votes (%d min), but its scores still '
+            'overlap with projects below it.' % (n, held['votes'], minutes))}
+    return {'status': 'Settling', 'detail': (
+        'Top-%d order last changed %d vote%s ago (%d min); stable after %d '
+        'min and %d votes.' % (n, held['votes'], '' if held['votes'] == 1 else 's',
+                                minutes, STABLE_MINUTES, STABLE_VOTES))}
+
+
+# ========================================
 # 4. VOTING ACTIVITY TIMELINE
 # ========================================
 
@@ -375,8 +399,6 @@ def get_statistical_summary(items=None, judges=None, comparisons=None):
     """
     Calculate comprehensive statistical summary for dashboard.
     """
-    from gavel import crowd_bt
-
     items, comparisons = _resolve(items, comparisons)
     items = _active(items)
     if judges is None:
@@ -390,9 +412,6 @@ def get_statistical_summary(items=None, judges=None, comparisons=None):
             'total_judges': len(judges),
             'avg_comparisons_per_project': 0,
             'avg_comparisons_per_judge': 0,
-            'convergence_status': 'Not Started',
-            'avg_uncertainty': 0,
-            'estimated_votes_needed': 0
         }
 
     # Basic counts
@@ -416,23 +435,6 @@ def get_statistical_summary(items=None, judges=None, comparisons=None):
 
     avg_comparisons_per_judge = total_comparisons / total_judges if total_judges > 0 else 0
 
-    # Convergence analysis
-    avg_uncertainty = sum(float(item.sigma_sq) for item in items) / len(items)
-    initial_sigma_sq = float(crowd_bt.SIGMA_SQ_PRIOR)
-
-    if avg_uncertainty < 0.5:
-        convergence_status = 'Converged'
-    elif avg_uncertainty < 1.0:
-        convergence_status = 'Nearly Converged'
-    elif avg_uncertainty < initial_sigma_sq * 0.8:
-        convergence_status = 'In Progress'
-    else:
-        convergence_status = 'Early Stage'
-
-    # Estimate votes needed
-    estimated_votes_needed = estimate_votes_to_convergence(
-        target_avg_sigma_sq=0.5, items=items, comparisons=decisions)
-
     # Projects with high uncertainty
     high_uncertainty_projects = sorted(
         [(item.name, float(item.sigma_sq)) for item in items],
@@ -447,8 +449,5 @@ def get_statistical_summary(items=None, judges=None, comparisons=None):
         'active_judges': active_judges,
         'avg_comparisons_per_project': round(avg_comparisons_per_project, 1),
         'avg_comparisons_per_judge': round(avg_comparisons_per_judge, 1),
-        'convergence_status': convergence_status,
-        'avg_uncertainty': round(avg_uncertainty, 3),
-        'estimated_votes_needed': estimated_votes_needed if estimated_votes_needed else 0,
         'high_uncertainty_projects': high_uncertainty_projects
     }

@@ -223,8 +223,7 @@ table {
     <p><strong>Total Comparisons:</strong> {{ statistical_summary.total_comparisons }}</p>
     <p><strong>Active Judges:</strong> {{ statistical_summary.active_judges }} of {{ statistical_summary.total_judges }} total</p>
     <p><strong>Avg Comparisons/Project:</strong> {{ statistical_summary.avg_comparisons_per_project }}</p>
-    <p><strong>Convergence Status:</strong> {{ statistical_summary.convergence_status }} (Avg σ²: {{ statistical_summary.avg_uncertainty }})</p>
-    <p><strong>Estimated Votes Needed:</strong> {{ statistical_summary.estimated_votes_needed }} to converge</p>
+    <p><strong>Convergence:</strong> {{ convergence.status }} <span class="muted">&mdash; {{ convergence.detail }}</span></p>
     <p><strong>Votes Last Minute:</strong> {{ voting_timeline.votes_last_minute }}</p>
     <p><strong>Peak Activity:</strong> {{ voting_timeline.peak_time or 'N/A' }}</p>
     <p><strong>Avg Votes/Minute:</strong> {{ voting_timeline.avg_votes_per_minute | round(2) }}</p>
