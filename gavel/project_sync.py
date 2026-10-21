@@ -43,6 +43,15 @@ def _app_context():
 HACKPSU_API_URL = os.environ.get('HACKPSU_API_URL', 'https://apiv3.hackpsu.org/judging/projects')
 CATEGORY_FILTER = os.environ.get('CATEGORY_FILTER')  # Optional category filter
 
+# Categories whose projects are not judged for the main prize (e.g. a separate
+# business track). Comma-separated, matched case-insensitively. A project in
+# any of them is not synced, and is deactivated if an earlier sync added it.
+CATEGORY_EXCLUDE = {
+    cat.strip().lower()
+    for cat in os.environ.get('CATEGORY_EXCLUDE', '').split(',')
+    if cat.strip()
+}
+
 # Which endpoint tells us the active hackathon.
 #
 # /hackathons/active is declared @Roles(Role.NONE), which still requires a
@@ -143,6 +152,14 @@ def matches_category_filter(categories_str, filter_category):
     return filter_category in categories
 
 
+def matches_excluded_category(categories_str):
+    """True if any of the project's categories is in CATEGORY_EXCLUDE."""
+    if not categories_str or not CATEGORY_EXCLUDE:
+        return False
+    return any(cat.strip().lower() in CATEGORY_EXCLUDE
+               for cat in categories_str.split(','))
+
+
 def _adopt_hackathon(hackathon_id, name):
     """
     Point Gavel at the hackathon the API reports -- unless a demo is running.
@@ -189,6 +206,8 @@ def sync_projects_from_api():
 
     if CATEGORY_FILTER:
         print(f"[SYNC] Filtering projects by category: {CATEGORY_FILTER}")
+    if CATEGORY_EXCLUDE:
+        print(f"[SYNC] Excluding projects in categories: {', '.join(sorted(CATEGORY_EXCLUDE))}")
 
     hackathon_id = sync_active_hackathon()
     if not hackathon_id:
@@ -211,21 +230,30 @@ def sync_projects_from_api():
             synced_count = 0
             updated_count = 0
             filtered_count = 0
+            excluded_count = 0
+            deactivated_count = 0
 
             # Pre-filter projects outside the transaction
             projects_to_sync = []
+            excluded_names = set()
             for project_data in projects:
+                categories = project_data.get('categories', '')
+                if matches_excluded_category(categories):
+                    raw_name = project_data.get('name', f"Project {project_data.get('id')}")
+                    excluded_names.add(extract_table_number(raw_name)[1])
+                    excluded_count += 1
+                    continue
                 if CATEGORY_FILTER:
-                    categories = project_data.get('categories', '')
                     if not matches_category_filter(categories, CATEGORY_FILTER):
                         filtered_count += 1
                         continue
                 projects_to_sync.append(project_data)
 
             def tx():
-                nonlocal synced_count, updated_count
+                nonlocal synced_count, updated_count, deactivated_count
                 synced_count = 0
                 updated_count = 0
+                deactivated_count = 0
 
                 # One read of this hackathon's projects, not one per project.
                 # item has no index on (name, hackathon_id), so each per-project
@@ -277,14 +305,25 @@ def sync_projects_from_api():
                             updated_count += 1
                             print(f"[SYNC] Updated location for: {clean_name} to {location}")
 
+                # A project synced before its category was excluded (or before
+                # it was moved into that category) is already in the queue.
+                for name in excluded_names:
+                    existing = existing_by_name.get(name)
+                    if existing is not None and existing.active:
+                        existing.active = False
+                        deactivated_count += 1
+                        print(f"[SYNC] Deactivated excluded project: {name}")
+
                 db.session.commit()
 
             with_retries(tx)
 
+            summary = f"[SYNC] Complete: {synced_count} created, {updated_count} updated"
             if CATEGORY_FILTER:
-                print(f"[SYNC] Complete: {synced_count} created, {updated_count} updated, {filtered_count} filtered out")
-            else:
-                print(f"[SYNC] Complete: {synced_count} created, {updated_count} updated")
+                summary += f", {filtered_count} filtered out"
+            if CATEGORY_EXCLUDE:
+                summary += f", {excluded_count} excluded ({deactivated_count} deactivated)"
+            print(summary)
 
     except Exception as e:
         print(f"[SYNC ERROR] Failed to sync projects: {e}")

@@ -135,6 +135,9 @@ already in the database.
 
 - `PROJECT_SYNC_INTERVAL` -- seconds before the list is considered stale.
 - `LAZY_PROJECT_SYNC=false` -- turn the on-demand check off entirely.
+- `CATEGORY_EXCLUDE=Business` -- comma-separated categories (case-insensitive)
+  whose projects are left out of judging. They are not synced, and any already
+  synced are deactivated on the next sync.
 - `ENABLE_PROJECT_SYNC=true` -- additionally run the old in-process
   APScheduler. Off by default, and unnecessary now: it needs
   `--min-instances 1 --no-cpu-throttling` to fire reliably.
