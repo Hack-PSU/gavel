@@ -43,6 +43,14 @@ def admin():
     annotators = Annotator.query_current().order_by(Annotator.id).all()
     items = Item.query_current().order_by(Item.id).all()
 
+    # The category filter narrows the ranking and the project table, so a
+    # category prize can be read straight off the page. Everything else stays
+    # event-wide: judges compare across categories, so the vote history,
+    # stability and convergence only make sense for the event as a whole.
+    categories = Item.categories_of(items)
+    category = request.args.get('category', '').strip() or None
+    shown_items = [i for i in items if i.has_category(category)] if category else items
+
     # Load every comparison once, as four columns rather than full ORM
     # objects, and hand it to each analytic below. Each of them used to run its
     # own Decision.query.all(), so one page load scanned the decision table
@@ -70,6 +78,9 @@ def admin():
     confidence = analytics.get_confidence_intervals(items, comparisons)
     stability = analytics.get_ranking_stability(items, comparisons)
     convergence = analytics.get_convergence(confidence, stability)
+    # Ranked among the category only: #1 here is the category winner.
+    ranking = analytics.get_confidence_intervals(shown_items, comparisons) \
+        if category else confidence
     # Judging runs about an hour, so the last hour is the whole event.
     voting_timeline = analytics.get_voting_timeline(hours=1, comparisons=comparisons)
     statistical_summary = analytics.get_statistical_summary(
@@ -88,10 +99,13 @@ def admin():
         view_counts=view_counts,
         skipped=skipped,
         items=items,
+        shown_items=shown_items,
+        categories=categories,
+        category=category,
         votes=len(comparisons),
         setting_closed=setting_closed,
         graph_data=graph_data,
-        confidence=confidence,
+        confidence=ranking,
         stability=stability,
         convergence=convergence,
         voting_timeline=voting_timeline,
@@ -185,7 +199,8 @@ def item():
                 return utils.server_error("Projects can't be deleted once they have been voted on by a judge. You can use the 'disable' functionality instead, which has a similar effect, preventing the project from being shown to judges.")
             else:
                 return utils.server_error(str(e))
-    return redirect(url_for('admin'))
+    # Keep the admin on the category they were filtering by.
+    return redirect(url_for('admin', category=request.form.get('category') or None))
 
 
 def allowed_file(filename):

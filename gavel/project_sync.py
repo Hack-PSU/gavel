@@ -130,6 +130,20 @@ def extract_table_number(name):
         return table_num, clean_name
     return None, name
 
+def normalize_categories(categories):
+    """
+    The API's categories as stored on Item.category: "AI,Web", or None.
+
+    Whitespace around each category is dropped so the stored value doesn't
+    churn between syncs. A list is accepted too, in case the API changes shape.
+    """
+    if not categories:
+        return None
+    if isinstance(categories, str):
+        categories = categories.split(',')
+    cleaned = [str(cat).strip() for cat in categories if str(cat).strip()]
+    return ','.join(cleaned) or None
+
 def matches_category_filter(categories_str, filter_category):
     """
     Check if any category in the comma-separated categories string matches the filter.
@@ -235,12 +249,12 @@ def sync_projects_from_api():
 
             # Pre-filter projects outside the transaction
             projects_to_sync = []
-            excluded_names = set()
+            excluded = {}  # clean name -> categories
             for project_data in projects:
-                categories = project_data.get('categories', '')
+                categories = normalize_categories(project_data.get('categories'))
                 if matches_excluded_category(categories):
                     raw_name = project_data.get('name', f"Project {project_data.get('id')}")
-                    excluded_names.add(extract_table_number(raw_name)[1])
+                    excluded[extract_table_number(raw_name)[1]] = categories
                     excluded_count += 1
                     continue
                 if CATEGORY_FILTER:
@@ -282,6 +296,7 @@ def sync_projects_from_api():
                         print(f"[SYNC] No table number in name: {raw_name!r}")
 
                     description = clean_name
+                    category = normalize_categories(project_data.get('categories'))
 
                     # Scoped to this hackathon: a project with the same name
                     # at a previous event is a different project.
@@ -292,7 +307,8 @@ def sync_projects_from_api():
                             name=clean_name,
                             location=location,
                             description=description,
-                            hackathon_id=hackathon_id
+                            hackathon_id=hackathon_id,
+                            category=category
                         )
                         item.active = True
                         db.session.add(item)
@@ -300,16 +316,27 @@ def sync_projects_from_api():
                         synced_count += 1
                         print(f"[SYNC] Created: {clean_name} at {location}")
                     else:
+                        changed = False
                         if existing.location != location:
                             existing.location = location
-                            updated_count += 1
+                            changed = True
                             print(f"[SYNC] Updated location for: {clean_name} to {location}")
+                        # Also backfills projects synced before the column existed.
+                        if existing.category != category:
+                            existing.category = category
+                            changed = True
+                            print(f"[SYNC] Updated category for: {clean_name} to {category}")
+                        if changed:
+                            updated_count += 1
 
                 # A project synced before its category was excluded (or before
                 # it was moved into that category) is already in the queue.
-                for name in excluded_names:
+                for name, category in excluded.items():
                     existing = existing_by_name.get(name)
-                    if existing is not None and existing.active:
+                    if existing is None:
+                        continue
+                    existing.category = category
+                    if existing.active:
                         existing.active = False
                         deactivated_count += 1
                         print(f"[SYNC] Deactivated excluded project: {name}")

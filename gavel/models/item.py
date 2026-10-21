@@ -20,17 +20,42 @@ class Item(db.Model):
     active = db.Column(db.Boolean, default=True, nullable=False)
     viewed = db.relationship('Annotator', secondary=view_table)
     prioritized = db.Column(db.Boolean, default=False, nullable=False)
+    # The project's categories from the HackPSU API, comma-separated (e.g.
+    # "AI,Web"). Null for projects added by hand or synced before this existed.
+    category = db.Column(db.Text)
 
     mu = db.Column(DoubleFloat)
     sigma_sq = db.Column(DoubleFloat)
 
-    def __init__(self, name, location, description, hackathon_id=None):
+    def __init__(self, name, location, description, hackathon_id=None, category=None):
         self.hackathon_id = hackathon_id or current_hackathon_id()
         self.name = name
         self.location = location
         self.description = description
+        self.category = category
         self.mu = crowd_bt.MU_PRIOR
         self.sigma_sq = crowd_bt.SIGMA_SQ_PRIOR
+
+    @property
+    def categories(self):
+        '''The categories as a list, for filtering on one of them.'''
+        if not self.category:
+            return []
+        return [cat.strip() for cat in self.category.split(',') if cat.strip()]
+
+    def has_category(self, category):
+        '''Whether the project is in `category`, ignoring case.'''
+        wanted = category.strip().lower()
+        return any(cat.lower() == wanted for cat in self.categories)
+
+    @staticmethod
+    def categories_of(items):
+        '''Every category used by `items`, sorted, each spelled as first seen.'''
+        seen = {}
+        for item in items:
+            for cat in item.categories:
+                seen.setdefault(cat.lower(), cat)
+        return sorted(seen.values(), key=str.lower)
 
     @classmethod
     def by_id(cls, uid):

@@ -2,7 +2,7 @@ from gavel import app
 from gavel.models import *
 import gavel.utils as utils
 from gavel.firebase_session_auth import hackpsu_admin_required
-from flask import Response, jsonify
+from flask import Response, jsonify, request
 from sqlalchemy.orm import joinedload
 
 @app.route('/api/items.csv')
@@ -10,13 +10,17 @@ from sqlalchemy.orm import joinedload
 @hackpsu_admin_required
 def item_dump():
     items = Item.query_current().order_by(desc(Item.mu)).all()
-    data = [['Mu', 'Sigma Squared', 'Name', 'Location', 'Description', 'Active']]
+    category = request.args.get('category', '').strip()
+    if category:
+        items = [item for item in items if item.has_category(category)]
+    data = [['Mu', 'Sigma Squared', 'Name', 'Location', 'Description', 'Category', 'Active']]
     data += [[
         str(item.mu),
         str(item.sigma_sq),
         item.name,
         item.location,
         item.description,
+        item.category or '',
         item.active
     ] for item in items]
     return Response(utils.data_to_csv_string(data), mimetype='text/csv')

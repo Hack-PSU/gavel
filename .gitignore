@@ -3,6 +3,7 @@ config.yaml
 env/
 .vagrant/
 .env.auth
+.env
 # Local dev: production snapshots and pulled env. Contains real judge
 # names and emails -- never commit.
 local/

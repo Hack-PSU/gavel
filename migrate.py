@@ -571,6 +571,17 @@ def item_lookup_index(conn, log, opts):
         'get it')
 
 
+def item_category(conn, log, opts):
+    """
+    Store each project's categories from the HackPSU API.
+
+    The sync used to read them only to filter, then drop them, so nothing in
+    Gavel could tell a business-track project from any other. Existing rows
+    stay null until the next project sync fills them in.
+    """
+    _ensure_column(conn, 'item', 'category', 'TEXT', log)
+
+
 
 # Ordered. Append new steps; never renumber or reorder existing ones.
 MIGRATIONS = [
@@ -580,6 +591,7 @@ MIGRATIONS = [
     ('0004_tenancy_constraints', tenancy_constraints),
     ('0005_demo_hackathons', demo_hackathons),
     ('0006_item_lookup_index', item_lookup_index),
+    ('0007_item_category', item_category),
 ]
 
 
@@ -733,7 +745,34 @@ def _resolve_url(explicit):
         if value:
             return value.replace('postgres://', 'postgresql://', 1) \
                 if value.startswith('postgres://') else value
-    return 'postgresql://localhost/gavel'
+    return _mysql_url_from_parts() or 'postgresql://localhost/gavel'
+
+
+def _mysql_url_from_parts():
+    """
+    The MYSQL_* variables as a URL, as gavel/settings.py builds it.
+
+    Duplicated rather than imported because this file must not import the
+    gavel package. Without it, an environment configured the way Cloud Run is
+    -- parts, no DATABASE_URL -- would quietly migrate localhost instead.
+    """
+    user = os.environ.get('MYSQL_USER')
+    password = os.environ.get('MYSQL_PASSWORD')
+    database = os.environ.get('MYSQL_DATABASE')
+    if not (user and password and database):
+        return None
+
+    from urllib.parse import quote_plus
+    credentials = '%s:%s' % (quote_plus(user), quote_plus(password))
+
+    socket_path = os.environ.get('MYSQL_SOCKET_PATH')
+    if socket_path:
+        return 'mysql+pymysql://%s@/%s?unix_socket=%s' % (
+            credentials, database, quote_plus(socket_path))
+
+    host = os.environ.get('MYSQL_HOST', '127.0.0.1')
+    port = os.environ.get('MYSQL_PORT', '3306')
+    return 'mysql+pymysql://%s@%s:%s/%s' % (credentials, host, port, database)
 
 
 def main(argv=None):
@@ -744,7 +783,8 @@ def main(argv=None):
     parser.add_argument('command', choices=('status', 'upgrade'))
     parser.add_argument(
         '--database-url', default=None,
-        help='Target database. Defaults to DATABASE_URL, then DB_URI. Point '
+        help='Target database. Defaults to DATABASE_URL, then DB_URI, then '
+             'one built from the MYSQL_* variables. Point '
              'this at Cloud SQL to prepare a new instance.',
     )
     parser.add_argument(

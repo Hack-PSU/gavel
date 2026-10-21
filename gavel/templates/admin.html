@@ -126,6 +126,12 @@ table {
   color: #0b3b4b;
   font-weight: bold;
 }
+.category-filter {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
 @media (max-width: 768px) {
   .ci-row {
     grid-template-columns: 2rem minmax(5rem, 8rem) minmax(5rem, 1fr) 4.5rem;
@@ -279,7 +285,30 @@ table {
 
 <div class="item">
   <div class="banner">
-    <h2>Score Confidence (95%)</h2>
+    <h2>Category</h2>
+  </div>
+  <div class="info">
+    {% if categories %}
+    <form action="{{ url_for('admin') }}" method="get" class="category-filter">
+      <select name="category" id="category-select">
+        <option value="">All categories</option>
+        {% for cat in categories %}
+        <option value="{{ cat }}"{% if category and cat | lower == category | lower %} selected{% endif %}>{{ cat }}</option>
+        {% endfor %}
+      </select>
+      <input type="submit" value="Filter" class="neutral">
+    </form>
+    <p class="analytics-note">Narrows the score ranking and the project table below, ranking
+    projects within the category. Everything else on the page covers the whole event.</p>
+    {% else %}
+    <p class="analytics-note">No project has a category yet. Categories come from the HackPSU API
+    and are filled in by the next project sync.</p>
+    {% endif %}
+  </div>
+</div>
+<div class="item">
+  <div class="banner">
+    <h2>Score Confidence (95%){% if category %} &mdash; {{ category }}{% endif %}</h2>
   </div>
   <div class="info">
     {% if confidence.rows %}
@@ -310,7 +339,7 @@ table {
       {% endfor %}
     </div>
     {% else %}
-    <p class="analytics-note">No active projects yet.</p>
+    <p class="analytics-note">No active projects{% if category %} in {{ category }}{% endif %} yet.</p>
     {% endif %}
   </div>
 </div>
@@ -342,7 +371,7 @@ table {
 
 <div class="item">
   <div class="banner">
-    <h2>Projects</h2>
+    <h2>Projects{% if category %} &mdash; {{ category }} ({{ shown_items | length }} of {{ items | length }}){% endif %}</h2>
   </div>
   <div class="info">
     <table id="items">
@@ -352,6 +381,7 @@ table {
           <th data-sort-method="caseInsensitiveSort">Name</th>
           <th data-sort-method="caseInsensitiveSort">Location</th>
           <th data-sort-method="caseInsensitiveSort">Description</th>
+          <th data-sort-method="caseInsensitiveSort">Category</th>
           <th class="sort-default" data-sort-method="number" data-sort-order="desc">Mu</th>
           <th data-sort-method="number">Sigma Squared</th>
           <th data-sort-method="number">Votes</th>
@@ -363,12 +393,13 @@ table {
         </tr>
       </thead>
       <tbody>
-        {% for item in items %}
+        {% for item in shown_items %}
         <tr class="{{ 'disabled' if not item.active else 'prioritized' if item.prioritized else '' }}">
           <td><a href="{{ url_for('item_detail', item_id=item.id) }}" class="colored">{{ item.id }}</a></td>
           <td>{{ item.name }}</td>
           <td>{{ item.location }}</td>
           <td class="preserve-formatting">{{ item.description }}</td>
+          <td>{{ item.categories | join(', ') }}</td>
           <td>{{ item.mu | round(4) }}</td>
           <td>{{ item.sigma_sq | round(4) }}</td>
           <td>{{ item_counts.get(item.id, 0) }}</td>
@@ -378,6 +409,7 @@ table {
             <form action="{{ url_for('item') }}" method="post">
               <input type="submit" name="action" value="{{ 'Prioritize' if not item.prioritized else 'Cancel' }}" class="{{ 'positive' if not item.prioritized else 'negative' }}">
               <input type="hidden" name="item_id" value="{{ item.id }}">
+              {% if category %}<input type="hidden" name="category" value="{{ category }}">{% endif %}
               <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
             </form>
           </td>
@@ -385,6 +417,7 @@ table {
             <form action="{{ url_for('item') }}" method="post">
               <input type="submit" name="action" value="{{ 'Disable' if item.active else 'Enable' }}" class="{{ 'negative' if item.active else 'positive' }}">
               <input type="hidden" name="item_id" value="{{ item.id }}">
+              {% if category %}<input type="hidden" name="category" value="{{ category }}">{% endif %}
               <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
             </form>
           </td>
@@ -392,6 +425,7 @@ table {
             <form action="{{ url_for('item') }}" method="post">
               <input type="submit" name="action" value="Delete" class="negative">
               <input type="hidden" name="item_id" value="{{ item.id }}">
+              {% if category %}<input type="hidden" name="category" value="{{ category }}">{% endif %}
               <input type="hidden" name="_csrf_token" value="{{ csrf_token() }}">
             </form>
           </td>
@@ -401,7 +435,7 @@ table {
     </table>
   </div>
   <div class="api-link">
-    <a href="{{ url_for('item_dump') }}">Download CSV</a>
+    <a href="{{ url_for('item_dump', category=category) }}">Download CSV{% if category %} ({{ category }}){% endif %}</a>
   </div>
 </div>
 
@@ -577,6 +611,14 @@ for (var i = 0; i < tables.length; i++) {
     new Tablesort(tables[i]);
   }
 }
+
+// Apply the category filter as soon as one is picked.
+(function() {
+  var select = document.getElementById('category-select');
+  if (select) {
+    select.addEventListener('change', function() { select.form.submit(); });
+  }
+})();
 
 // Lazy-load decisions table on expand
 (function() {
